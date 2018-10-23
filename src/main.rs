@@ -35,7 +35,7 @@ use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 use futures::sync::mpsc;
-use futures::future::{self, Either};
+//use futures::future::{self, Either};
 use bytes::{BytesMut, Bytes, BufMut};
 
 use std::collections::HashMap;
@@ -59,18 +59,7 @@ struct Shared {
 }
 
 /// The state for each connected client.
-struct Peer {
-    /// Name of the peer.
-    ///
-    /// When a client connects, the first line sent is treated as the client's
-    /// name (like alice or bob). The name is used to preface all messages that
-    /// arrive from the client so that we can simulate a real chat server:
-    ///
-    /// ```text
-    /// alice: Hello everyone.
-    /// bob: Welcome to telnet chat!
-    /// ```
-    name: BytesMut,
+struct Client {
 
     /// The TCP socket wrapped with the `Lines` codec, defined below.
     ///
@@ -129,11 +118,10 @@ impl Shared {
     }
 }
 
-impl Peer {
+impl Client {
     /// Create a new instance of `Peer`.
-    fn new(name: BytesMut,
-           state: Arc<Mutex<Shared>>,
-           lines: Lines) -> Peer
+    fn new(state: Arc<Mutex<Shared>>,
+           lines: Lines) -> Client
     {
         // Get the client socket address
         let addr = lines.socket.peer_addr().unwrap();
@@ -145,8 +133,7 @@ impl Peer {
         state.lock().unwrap()
             .peers.insert(addr, tx);
 
-        Peer {
-            name,
+        Client {
             lines,
             state,
             rx,
@@ -167,7 +154,7 @@ impl Peer {
 /// 1) Receive messages on its message channel and write them to the socket.
 /// 2) Receive messages from the socket and broadcast them to all peers.
 ///
-impl Future for Peer {
+impl Future for Client {
     type Item = ();
     type Error = io::Error;
 
@@ -211,11 +198,11 @@ impl Future for Peer {
 
         // Read new lines from the socket
         while let Async::Ready(line) = self.lines.poll()? {
-            println!("Received line ({:?}) : {:?}", self.name, line);
+            println!("Received line {:?}", line);
 
             if let Some(message) = line {
                 // Append the peer's name to the front of the line:
-                let mut line = self.name.clone();
+                let mut line = BytesMut::new();
                 line.extend_from_slice(b": ");
                 line.extend_from_slice(&message);
                 line.extend_from_slice(b"\r\n");
@@ -254,7 +241,7 @@ impl Future for Peer {
     }
 }
 
-impl Drop for Peer {
+impl Drop for Client {
     fn drop(&mut self) {
         self.state.lock().unwrap().peers
             .remove(&self.addr);
@@ -366,7 +353,7 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
     // By doing this, we can operate at the line level instead of doing raw byte
     // manipulation.
     let lines = Lines::new(socket);
-
+/*
     // The first line is treated as the client's name. The client is not added
     // to the set of connected peers until this line is received.
     //
@@ -408,8 +395,7 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
             //
             // This is also a future that processes the connection, only
             // completing when the socket closes.
-            let peer = Peer::new(
-                name,
+            let peer = Client::new(
                 state,
                 lines);
 
@@ -421,9 +407,15 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
         .map_err(|e| {
             println!("connection error = {:?}", e);
         });
+*/
+    let peer = Client::new(
+        state,
+        lines).map_err(|e| {
+            println!("connection error = {:?}", e);
+        });
 
     // Spawn the task. Internally, this submits the task to a thread pool.
-    tokio::spawn(connection);
+    tokio::spawn(peer);
 }
 
 pub fn main() {
