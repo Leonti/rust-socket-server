@@ -55,7 +55,7 @@ type Rx = mpsc::UnboundedReceiver<Bytes>;
 /// iterating over the `peers` entries and sending a copy of the message on each
 /// `Tx`.
 struct Shared {
-    peers: HashMap<SocketAddr, Tx>,
+    clients: HashMap<SocketAddr, Tx>,
 }
 
 /// The state for each connected client.
@@ -113,7 +113,7 @@ impl Shared {
     /// Create a new, empty, instance of `Shared`.
     fn new() -> Self {
         Shared {
-            peers: HashMap::new(),
+            clients: HashMap::new(),
         }
     }
 }
@@ -131,7 +131,7 @@ impl Client {
 
         // Add an entry for this `Peer` in the shared state map.
         state.lock().unwrap()
-            .peers.insert(addr, tx);
+            .clients.insert(addr, tx);
 
         Client {
             lines,
@@ -215,7 +215,7 @@ impl Future for Client {
                 let line = line.freeze();
 
                 // Now, send the line to all other peers
-                for (addr, tx) in &self.state.lock().unwrap().peers {
+                for (addr, tx) in &self.state.lock().unwrap().clients {
                     // Don't send the message to ourselves
                     if *addr != self.addr {
                         // The send only fails if the rx half has been dropped,
@@ -242,7 +242,7 @@ impl Future for Client {
 
 impl Drop for Client {
     fn drop(&mut self) {
-        self.state.lock().unwrap().peers
+        self.state.lock().unwrap().clients
             .remove(&self.addr);
     }
 }
