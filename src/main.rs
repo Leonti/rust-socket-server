@@ -56,6 +56,7 @@ type Rx = mpsc::UnboundedReceiver<Bytes>;
 /// `Tx`.
 struct Shared {
     clients: HashMap<SocketAddr, Tx>,
+    server_tx: Tx
 }
 
 /// The state for each connected client.
@@ -111,9 +112,10 @@ struct Lines {
 
 impl Shared {
     /// Create a new, empty, instance of `Shared`.
-    fn new() -> Self {
+    fn new(server_tx: Tx) -> Self {
         Shared {
             clients: HashMap::new(),
+            server_tx
         }
     }
 }
@@ -224,6 +226,8 @@ impl Future for Client {
                         tx.unbounded_send(line.clone()).unwrap();
                     }
                 }
+
+                &self.state.lock().unwrap().server_tx.unbounded_send(line.clone()).unwrap();
             } else {
                 // EOF was reached. The remote client has disconnected. There is
                 // nothing more to do.
@@ -369,7 +373,9 @@ pub fn main() {
     // The server task will hold a handle to this. For every new client, the
     // `state` handle is cloned and passed into the task that processes the
     // client connection.
-    let state = Arc::new(Mutex::new(Shared::new()));
+
+    let (server_tx, _) = mpsc::unbounded();
+    let state = Arc::new(Mutex::new(Shared::new(server_tx)));
 
     let addr = "127.0.0.1:6142".parse().unwrap();
 
