@@ -203,7 +203,6 @@ impl Future for Client {
             if let Some(message) = line {
                 // Append the peer's name to the front of the line:
                 let mut line = BytesMut::new();
-                line.extend_from_slice(b": ");
                 line.extend_from_slice(&message);
                 line.extend_from_slice(b"\r\n");
 
@@ -353,61 +352,7 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
     // By doing this, we can operate at the line level instead of doing raw byte
     // manipulation.
     let lines = Lines::new(socket);
-/*
-    // The first line is treated as the client's name. The client is not added
-    // to the set of connected peers until this line is received.
-    //
-    // We use the `into_future` combinator to extract the first item from the
-    // lines stream. `into_future` takes a `Stream` and converts it to a future
-    // of `(first, rest)` where `rest` is the original stream instance.
-    let connection = lines.into_future()
-        // `into_future` doesn't have the right error type, so map the error to
-        // make it work.
-        .map_err(|(e, _)| e)
-        // Process the first received line as the client's name.
-        .and_then(|(name, lines)| {
-            // If `name` is `None`, then the client disconnected without
-            // actually sending a line of data.
-            //
-            // Since the connection is closed, there is no further work that we
-            // need to do. So, we just terminate processing by returning
-            // `future::ok()`.
-            //
-            // The problem is that only a single future type can be returned
-            // from a combinator closure, but we want to return both
-            // `future::ok()` and `Peer` (below).
-            //
-            // This is a common problem, so the `futures` crate solves this by
-            // providing the `Either` helper enum that allows creating a single
-            // return type that covers two concrete future types.
-            let name = match name {
-                Some(name) => name,
-                None => {
-                    // The remote client closed the connection without sending
-                    // any data.
-                    return Either::A(future::ok(()));
-                }
-            };
 
-            println!("`{:?}` is joining the chat", name);
-
-            // Create the peer.
-            //
-            // This is also a future that processes the connection, only
-            // completing when the socket closes.
-            let peer = Client::new(
-                state,
-                lines);
-
-            // Wrap `peer` with `Either::B` to make the return type fit.
-            Either::B(peer)
-        })
-        // Task futures have an error of type `()`, this ensures we handle the
-        // error. We do this by printing the error to STDOUT.
-        .map_err(|e| {
-            println!("connection error = {:?}", e);
-        });
-*/
     let peer = Client::new(
         state,
         lines).map_err(|e| {
