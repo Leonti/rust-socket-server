@@ -227,7 +227,13 @@ impl Future for Client {
                     }
                 }
 
-                &self.state.lock().unwrap().server_tx.unbounded_send(line.clone()).unwrap();
+                let is_closed = &self.state.lock().unwrap().server_tx.is_closed();
+                println!("Is closed {:?}", is_closed);
+
+                match &self.state.lock().unwrap().server_tx.unbounded_send(line.clone()) {
+                    Ok(_) => println!("Message sent"),
+                    Err(e) => println!("send error = {:?}", e)
+                }
             } else {
                 // EOF was reached. The remote client has disconnected. There is
                 // nothing more to do.
@@ -368,30 +374,19 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
 }
 
 pub fn main() {
-    // Create the shared state. This is how all the peers communicate.
-    //
-    // The server task will hold a handle to this. For every new client, the
-    // `state` handle is cloned and passed into the task that processes the
-    // client connection.
 
-    let (server_tx, _) = mpsc::unbounded();
+    let (server_tx, server_rx) = mpsc::unbounded();
     let state = Arc::new(Mutex::new(Shared::new(server_tx)));
 
     let addr = "127.0.0.1:6142".parse().unwrap();
 
-    // Bind a TCP listener to the socket address.
-    //
-    // Note that this is the Tokio TcpListener, which is fully async.
     let listener = TcpListener::bind(&addr).unwrap();
 
-    // The server task asynchronously iterates over and processes each
-    // incoming connection.
     let server = listener.incoming().for_each(move |socket| {
         // Spawn a task to process the connection
         process(socket, state.clone());
         Ok(())
-    })
-    .map_err(|err| {
+    }).map_err(|err| {
         // All tasks must have an `Error` type of `()`. This forces error
         // handling and helps avoid silencing failures.
         //
@@ -401,17 +396,16 @@ pub fn main() {
 
     println!("server running on localhost:6142");
 
-    // Start the Tokio runtime.
-    //
-    // The Tokio is a pre-configured "out of the box" runtime for building
-    // asynchronous applications. It includes both a reactor and a task
-    // scheduler. This means applications are multithreaded by default.
-    //
-    // This function blocks until the runtime reaches an idle state. Idle is
-    // defined as all spawned tasks have completed and all I/O resources (TCP
-    // sockets in our case) have been dropped.
-    //
-    // In our example, we have not defined a shutdown strategy, so this will
-    // block until `ctrl-c` is pressed at the terminal.
+    let _messages = server_rx.for_each(|_| {
+        // process messages here
+        Ok(())
+    }).map_err(|err| {
+        // All tasks must have an `Error` type of `()`. This forces error
+        // handling and helps avoid silencing failures.
+        //
+        // In our example, we are only going to log the error to STDOUT.
+        println!("accept error = {:?}", err);
+    });
+
     tokio::run(server);
 }
