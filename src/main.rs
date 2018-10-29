@@ -377,7 +377,8 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
 
 pub fn main() {
 
-    let (server_tx, server_rx) = mpsc::unbounded();
+    let (server_tx, server_rx): (Tx, Rx) = mpsc::unbounded();
+    let (sensors_tx, sensors_rx): (Tx, Rx) = mpsc::unbounded();
     let state = Arc::new(Mutex::new(Shared::new(server_tx)));
 
     let addr = "127.0.0.1:6142".parse().unwrap();
@@ -400,14 +401,39 @@ pub fn main() {
         println!("line reading error = {:?}", err);
     });
 
+    let receive_sensor_messages = sensors_rx.for_each(move |line| {
+        println!("Received sensor message, broadcasting: {:?}", line);
+
+    //    for (_, tx) in state.clone().lock().unwrap().clients {
+    //        tx.unbounded_send(line.clone()).unwrap();
+    //    }
+
+        Ok(())
+    }).map_err(|err| {
+        println!("line reading error = {:?}", err);
+    });
+
     let sensors = Interval::new(Instant::now(), Duration::from_millis(1000))
-        .for_each(|instant| {
+        .for_each(move |instant| {
             println!("fire; instant={:?}", instant);
+
+            let mut line = BytesMut::new();
+            line.extend_from_slice(b"Sensor message\r\n");
+            let line = line.freeze();
+
+            match sensors_tx.unbounded_send(line.clone()) {
+                Ok(_) => println!("Sensor message sent"),
+                Err(e) => println!("send error = {:?}", e)
+            }
+
             Ok(())
         })
         .map_err(|e| panic!("interval errored; err={:?}", e));
 
-    let joined = server.join(receive_messages).join(sensors).map(|_| ());
+    let joined = server
+        .join(receive_messages)
+        .join(receive_sensor_messages)
+        .join(sensors).map(|_| ());
 
     tokio::run(joined);
 }
