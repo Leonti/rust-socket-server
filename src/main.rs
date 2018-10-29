@@ -34,6 +34,8 @@ extern crate bytes;
 use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
+use tokio::timer::Interval;
+use std::time::{Duration, Instant};
 use futures::sync::mpsc;
 //use futures::future::{self, Either};
 use bytes::{BytesMut, Bytes, BufMut};
@@ -398,7 +400,14 @@ pub fn main() {
         println!("line reading error = {:?}", err);
     });
 
-    let joined = server.join(receive_messages).map(|_| ());
+    let sensors = Interval::new(Instant::now(), Duration::from_millis(1000))
+        .for_each(|instant| {
+            println!("fire; instant={:?}", instant);
+            Ok(())
+        })
+        .map_err(|e| panic!("interval errored; err={:?}", e));
+
+    let joined = server.join(receive_messages).join(sensors).map(|_| ());
 
     tokio::run(joined);
 }
