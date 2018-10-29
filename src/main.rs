@@ -383,29 +383,22 @@ pub fn main() {
     let listener = TcpListener::bind(&addr).unwrap();
 
     let server = listener.incoming().for_each(move |socket| {
-        // Spawn a task to process the connection
         process(socket, state.clone());
         Ok(())
     }).map_err(|err| {
-        // All tasks must have an `Error` type of `()`. This forces error
-        // handling and helps avoid silencing failures.
-        //
-        // In our example, we are only going to log the error to STDOUT.
         println!("accept error = {:?}", err);
     });
 
     println!("server running on localhost:6142");
 
-    let _messages = server_rx.for_each(|_| {
-        // process messages here
+    let receive_messages = server_rx.for_each(|line| {
+        println!("Received line on server: {:?}", line);
         Ok(())
     }).map_err(|err| {
-        // All tasks must have an `Error` type of `()`. This forces error
-        // handling and helps avoid silencing failures.
-        //
-        // In our example, we are only going to log the error to STDOUT.
-        println!("accept error = {:?}", err);
+        println!("line reading error = {:?}", err);
     });
 
-    tokio::run(server);
+    let joined = server.join(receive_messages).map(|_| ());
+
+    tokio::run(joined);
 }
