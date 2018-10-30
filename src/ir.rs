@@ -18,7 +18,7 @@ impl Ir {
         Ir { tx }
     }
 
-    pub fn run(self) -> impl Future<Item = (), Error = ()> + 'static {
+    pub fn run(self) -> impl Future<Item = (), Error = ()> {
         Interval::new(Instant::now(), Duration::from_millis(1000))
             .for_each(move |instant| {
                 println!("fire; instant={:?}", instant);
