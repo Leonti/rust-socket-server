@@ -243,10 +243,6 @@ pub fn main() {
 
     let sensors_tx_arc = Arc::new(Mutex::new(sensors_tx));
 
-    let sensors_tx_arc1 = sensors_tx_arc.clone();
-
-    let ir_sensors = ir::Ir::new(sensors_tx_arc1.clone()).run();
-
     let sensors_tx_arc2 = sensors_tx_arc.clone();
     let sensors = Interval::new(Instant::now(), Duration::from_millis(1000))
         .for_each(move |instant| {
@@ -266,10 +262,14 @@ pub fn main() {
         })
         .map_err(|e| panic!("interval errored; err={:?}", e));
 
+    let sensors_tx_arc1 = sensors_tx_arc.clone();
+    let ir_sensors = ir::Ir::new(sensors_tx_arc1.clone());
+    let sensors_future = ir_sensors.run();
+
     let joined = server
         .join(receive_messages)
         .join(receive_sensor_messages)
-        .join(ir_sensors)
+        .join(sensors_future)
         .join(sensors).map(|_| ());
 
     tokio::run(joined);
