@@ -22,6 +22,8 @@ use std::sync::{Arc, Mutex};
 type Tx = mpsc::UnboundedSender<Bytes>;
 type Rx = mpsc::UnboundedReceiver<Bytes>;
 
+mod ir;
+
 struct Shared {
     clients: HashMap<SocketAddr, Tx>,
     server_tx: Tx
@@ -239,6 +241,13 @@ pub fn main() {
         println!("line reading error = {:?}", err);
     });
 
+    let sensors_tx_arc = Arc::new(Mutex::new(sensors_tx));
+
+    let sensors_tx_arc1 = sensors_tx_arc.clone();
+
+    let ir_sensors = ir::Ir::new(sensors_tx_arc1.clone()).run();
+
+    let sensors_tx_arc2 = sensors_tx_arc.clone();
     let sensors = Interval::new(Instant::now(), Duration::from_millis(1000))
         .for_each(move |instant| {
             println!("fire; instant={:?}", instant);
@@ -247,7 +256,8 @@ pub fn main() {
             line.extend_from_slice(b"Sensor message\r\n");
             let line = line.freeze();
 
-            match sensors_tx.unbounded_send(line.clone()) {
+            let s_tx = sensors_tx_arc2.lock().unwrap();
+            match s_tx.unbounded_send(line.clone()) {
                 Ok(_) => println!("Sensor message sent"),
                 Err(e) => println!("send error = {:?}", e)
             }
@@ -259,6 +269,7 @@ pub fn main() {
     let joined = server
         .join(receive_messages)
         .join(receive_sensor_messages)
+        .join(ir_sensors)
         .join(sensors).map(|_| ());
 
     tokio::run(joined);
