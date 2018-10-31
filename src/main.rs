@@ -11,8 +11,6 @@ extern crate bytes;
 use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
-use tokio::timer::Interval;
-use std::time::{Duration, Instant};
 use futures::sync::mpsc;
 use bytes::{BytesMut, Bytes, BufMut};
 
@@ -22,7 +20,8 @@ use std::sync::{Arc, Mutex};
 type Tx = mpsc::UnboundedSender<Bytes>;
 type Rx = mpsc::UnboundedReceiver<Bytes>;
 
-mod ir;
+mod sensors;
+use sensors::*;
 
 struct Shared {
     clients: HashMap<SocketAddr, Tx>,
@@ -95,18 +94,15 @@ impl Future for Client {
         let _ = self.lines.poll_flush()?;
 
         while let Async::Ready(line) = self.lines.poll()? {
-            println!("Received line {:?}", line);
 
             if let Some(message) = line {
                 let mut line = BytesMut::new();
                 line.extend_from_slice(&message);
 
                 let line = line.freeze();
-                let is_closed = &self.state.lock().unwrap().server_tx.is_closed();
-                println!("Is closed {:?}", is_closed);
 
                 match &self.state.lock().unwrap().server_tx.unbounded_send(line.clone()) {
-                    Ok(_) => println!("Message sent"),
+                    Ok(_) => (),
                     Err(e) => println!("send error = {:?}", e)
                 }
             } else {
@@ -243,34 +239,21 @@ pub fn main() {
 
     let sensors_tx_arc = Arc::new(Mutex::new(sensors_tx));
 
-    let sensors_tx_arc2 = sensors_tx_arc.clone();
-    let sensors = Interval::new(Instant::now(), Duration::from_millis(1000))
-        .for_each(move |instant| {
-            println!("fire; instant={:?}", instant);
-
-            let mut line = BytesMut::new();
-            line.extend_from_slice(b"Sensor message\r\n");
-            let line = line.freeze();
-
-            let s_tx = sensors_tx_arc2.lock().unwrap();
-            match s_tx.unbounded_send(line.clone()) {
-                Ok(_) => println!("Sensor message sent"),
-                Err(e) => println!("send error = {:?}", e)
-            }
-
-            Ok(())
-        })
-        .map_err(|e| panic!("interval errored; err={:?}", e));
-
-    let sensors_tx_arc1 = sensors_tx_arc.clone();
-    let ir_sensors = ir::Ir::new(sensors_tx_arc1.clone());
-    let sensors_future = ir_sensors.run();
+    let ir = ir::Ir::new(sensors_tx_arc.clone());
+    let encoder = encoder::Encoder::new(sensors_tx_arc.clone());
+    let gyro = gyro::Gyro::new(sensors_tx_arc.clone());
+    let compass = compass::Compass::new(sensors_tx_arc.clone());
+    let axl = axl::Axl::new(sensors_tx_arc.clone());
 
     let joined = server
         .join(receive_messages)
         .join(receive_sensor_messages)
-        .join(sensors_future)
-        .join(sensors).map(|_| ());
+        .join(ir.run())
+        .join(encoder.run())
+        .join(gyro.run())
+        .join(compass.run())
+        .join(axl.run())
+        .map(|_| ());
 
     tokio::run(joined);
 }
