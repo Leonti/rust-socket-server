@@ -48,7 +48,8 @@ impl Arduino {
     #[allow(deprecated)]
     pub fn run(self) -> impl Future<Item = (), Error = ()> {
 
-        let settings = tokio_serial::SerialPortSettings::default();
+        let mut settings = tokio_serial::SerialPortSettings::default();
+        settings.baud_rate = 115200;
         let mut port = tokio_serial::Serial::from_path("/dev/ttyUSB0", &settings).unwrap();
         port.set_exclusive(false).expect("Unable to set serial port exlusive");
 
