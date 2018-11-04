@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::{io};
 use tokio::io::AsyncRead;
 use tokio_io::codec::{Decoder, Encoder};
+use tokio::prelude::*;
 
 use futures::{Future, Stream};
 
@@ -53,11 +54,18 @@ impl Arduino {
         let mut port = tokio_serial::Serial::from_path("/dev/ttyUSB0", &settings).unwrap();
         port.set_exclusive(false).expect("Unable to set serial port exlusive");
 
-        let (_, reader) = port.framed(LineCodec).split();
+        let (mut writer, reader) = port.framed(LineCodec).split();
+
+        let mut line = BytesMut::new();
+        line.extend_from_slice(b"Serial sensor message\r\n");
+
+        match writer.start_send(line) {
+            Ok(_) => (),
+            Err(e) => println!("axl send error = {:?}", e)
+        };
 
         reader
         .for_each(move |s| {
-        //    println!("{:?}", s);
 
             let mut line = BytesMut::new();
             line.extend_from_slice(b"Serial sensor message\r\n");
