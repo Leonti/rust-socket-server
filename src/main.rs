@@ -7,6 +7,9 @@ extern crate tokio;
 #[macro_use]
 extern crate futures;
 extern crate bytes;
+extern crate tokio_io;
+extern crate tokio_codec;
+extern crate tokio_serial;
 
 use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
@@ -244,6 +247,7 @@ pub fn main() {
     let gyro = gyro::Gyro::new(sensors_tx_arc.clone());
     let compass = compass::Compass::new(sensors_tx_arc.clone());
     let axl = axl::Axl::new(sensors_tx_arc.clone());
+    let arduino = arduino::Arduino::new(sensors_tx_arc.clone());
 
     let joined = server
         .join(receive_messages)
@@ -253,6 +257,7 @@ pub fn main() {
         .join(gyro.run())
         .join(compass.run())
         .join(axl.run())
+        .join(arduino.run())
         .map(|_| ());
 
     tokio::run(joined);

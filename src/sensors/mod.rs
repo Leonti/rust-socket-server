@@ -3,3 +3,4 @@ pub mod encoder;
 pub mod gyro;
 pub mod compass;
 pub mod axl;
+pub mod arduino;
