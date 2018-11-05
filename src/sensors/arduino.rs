@@ -75,10 +75,11 @@ impl Arduino {
             }
 
             Ok(())
-        }).map_err(|e| eprintln!("{}", e)))
+        }).map_err(|e| println!("{}", e)))
     }
 
     fn print_not_connected(self) -> Box<Future<Item = (), Error = ()> + Send> {
+        println!("Can't open serial port!");
         Box::new(future::ok(()).map_err(|e: std::io::Error| eprintln!("{}", e)))
     }
 
