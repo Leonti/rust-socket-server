@@ -7,7 +7,7 @@ use tokio::io::AsyncRead;
 use tokio_io::codec::{Decoder, Encoder};
 use tokio::prelude::*;
 
-use futures::{Future, Stream};
+use futures::{Future, Stream, future};
 
 type Tx = mpsc::UnboundedSender<Bytes>;
 
@@ -47,11 +47,7 @@ impl Arduino {
     }
 
     #[allow(deprecated)]
-    pub fn run(self) -> impl Future<Item = (), Error = ()> {
-
-        let mut settings = tokio_serial::SerialPortSettings::default();
-        settings.baud_rate = 115200;
-        let mut port = tokio_serial::Serial::from_path("/dev/ttyUSB0", &settings).unwrap();
+    fn read_from_port(self, mut port: tokio_serial::Serial) -> Box<Future<Item = (), Error = ()> + Send> {
         port.set_exclusive(false).expect("Unable to set serial port exlusive");
 
         let (mut writer, reader) = port.framed(LineCodec).split();
@@ -64,7 +60,7 @@ impl Arduino {
             Err(e) => println!("axl send error = {:?}", e)
         };
 
-        reader
+        Box::new(reader
         .for_each(move |s| {
 
             let mut line = BytesMut::new();
@@ -75,10 +71,24 @@ impl Arduino {
             let s_tx = &self.tx.lock().unwrap();
             match s_tx.unbounded_send(line.clone()) {
                 Ok(_) => (),
-                Err(e) => println!("axl send error = {:?}", e)
+                Err(e) => println!("serial send error = {:?}", e)
             }
 
             Ok(())
-        }).map_err(|e| eprintln!("{}", e))
+        }).map_err(|e| eprintln!("{}", e)))
+    }
+
+    fn print_not_connected(self) -> Box<Future<Item = (), Error = ()> + Send> {
+        Box::new(future::ok(()).map_err(|e: std::io::Error| eprintln!("{}", e)))
+    }
+
+    pub fn run(self) -> impl Future<Item = (), Error = ()> {
+
+        let mut settings = tokio_serial::SerialPortSettings::default();
+        settings.baud_rate = 115200;
+        match tokio_serial::Serial::from_path("/dev/ttyUSB0", &settings) {
+            Ok(port) => self.read_from_port(port),
+            Err(_e) => self.print_not_connected()
+        }
     }
 }
