@@ -1,5 +1,5 @@
 use futures::sync::mpsc;
-use bytes::{Bytes, BytesMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use std::sync::{Arc, Mutex};
 
 use std::{io};
@@ -35,7 +35,11 @@ impl Encoder for LineCodec {
     type Item = BytesMut;
     type Error = io::Error;
 
-    fn encode(&mut self, _item: Self::Item, _dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: Self::Item, dst: &mut BytesMut) -> Result<(), Self::Error> {
+        dst.put(item);
+
+        println!("Converting line {:?}", &dst);
+
         Ok(())
     }
 }
@@ -52,13 +56,17 @@ impl Arduino {
 
         let (mut writer, reader) = port.framed(LineCodec).split();
 
-        let mut line = BytesMut::new();
-        line.extend_from_slice(b"Serial sensor message\r\n");
 
-        match writer.start_send(line) {
-            Ok(_) => (),
-            Err(e) => println!("axl send error = {:?}", e)
+        let mut to_send = BytesMut::new();
+        to_send.extend_from_slice(b"S90\n");
+
+        match writer.start_send(to_send) {
+            Ok(_) => println!("Sent line to serial port"),
+            Err(e) => println!("serial send error = {:?}", e)
         };
+
+    //    let _r = writer.poll_complete();
+
 
         Box::new(reader
         .for_each(move |s| {
