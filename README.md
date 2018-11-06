@@ -16,5 +16,7 @@ linker = "arm-linux-gnueabihf-gcc-8"
 rustup target add armv7-unknown-linux-gnueabihf
 sudo apt-get install gcc-8-multilib-arm-linux-gnueabihf
 export PKG_CONFIG_ALLOW_CROSS=1
-cargo build --target=arm-unknown-linux-gnueabihf
+cargo build --target=armv7-unknown-linux-gnueabihf
 ```
+https://github.com/japaric/rust-cross
+
