@@ -19,4 +19,5 @@ export PKG_CONFIG_ALLOW_CROSS=1
 cargo build --target=armv7-unknown-linux-gnueabihf
 ```
 https://github.com/japaric/rust-cross
-
+sudo apt install gcc-arm-linux-gnueabihf
+https://docs.rs/crate/serialport/3.0.0/source/.gitlab-ci.yml
