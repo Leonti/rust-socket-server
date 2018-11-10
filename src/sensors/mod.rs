@@ -4,3 +4,4 @@ pub mod gyro;
 pub mod compass;
 pub mod axl;
 pub mod arduino;
+pub mod event;

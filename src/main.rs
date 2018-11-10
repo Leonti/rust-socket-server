@@ -10,6 +10,14 @@ extern crate bytes;
 extern crate tokio_io;
 extern crate tokio_codec;
 extern crate tokio_serial;
+extern crate sysfs_gpio;
+extern crate tokio_core;
+
+extern crate serde;
+extern crate serde_json;
+
+#[macro_use]
+extern crate serde_derive;
 
 use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
@@ -25,6 +33,10 @@ type Rx = mpsc::UnboundedReceiver<Bytes>;
 
 mod sensors;
 use sensors::*;
+use sensors::event::Event;
+
+type EventTx = mpsc::UnboundedSender<Event>;
+type EventRx = mpsc::UnboundedReceiver<Event>;
 
 struct Shared {
     clients: HashMap<SocketAddr, Tx>,
@@ -202,7 +214,7 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
 pub fn main() {
 
     let (server_tx, server_rx): (Tx, Rx) = mpsc::unbounded();
-    let (sensors_tx, sensors_rx): (Tx, Rx) = mpsc::unbounded();
+    let (sensors_tx, sensors_rx): (EventTx, EventRx) = mpsc::unbounded();
     let state = Arc::new(Mutex::new(Shared::new(server_tx)));
 
     let addr = "127.0.0.1:6142".parse().unwrap();
@@ -227,8 +239,14 @@ pub fn main() {
     });
 
     let local_state = state.clone();
-    let receive_sensor_messages = sensors_rx.for_each(move |line| {
-        println!("Received sensor message, broadcasting: {:?}", line);
+    let receive_sensor_messages = sensors_rx.for_each(move |event| {
+        let event_json = serde_json::to_string(&event).unwrap();
+        println!("Received sensor message, broadcasting: {:?}", &event_json);
+
+        let mut line = BytesMut::new();
+        line.extend_from_slice(event_json.as_bytes());
+        line.extend_from_slice(b"\r\n");
+        let line = line.freeze();
 
         let shared = local_state.lock().unwrap();
         for (_, tx) in &shared.clients {

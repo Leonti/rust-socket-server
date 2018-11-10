@@ -1,5 +1,5 @@
 use futures::sync::mpsc;
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{BytesMut, BufMut};
 use std::sync::{Arc, Mutex};
 
 use std::{io};
@@ -9,7 +9,9 @@ use tokio::prelude::*;
 
 use futures::{Future, Stream, future};
 
-type Tx = mpsc::UnboundedSender<Bytes>;
+use event::Event;
+
+type Tx = mpsc::UnboundedSender<Event>;
 
 pub struct Arduino {
     tx: Arc<Mutex<Tx>>
@@ -65,19 +67,20 @@ impl Arduino {
             Err(e) => println!("serial send error = {:?}", e)
         };
 
-    //    let _r = writer.poll_complete();
-
 
         Box::new(reader
         .for_each(move |s| {
 
+
             let mut line = BytesMut::new();
             line.extend_from_slice(b"Serial sensor message\r\n");
             line.extend_from_slice(&s);
-            let line = line.freeze();
+            let _line = line.freeze();
+
+            let event = Event::Generic { message: "Arduino sensor message".to_string() };
 
             let s_tx = &self.tx.lock().unwrap();
-            match s_tx.unbounded_send(line.clone()) {
+            match s_tx.unbounded_send(event) {
                 Ok(_) => (),
                 Err(e) => println!("serial send error = {:?}", e)
             }
