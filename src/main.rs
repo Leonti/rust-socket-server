@@ -40,8 +40,6 @@ mod command;
 use command::Command;
 
 mod motor;
-use motor::Motor;
-
 mod motor_handler;
 use motor_handler::MotorHandler;
 
@@ -281,10 +279,6 @@ pub fn main() {
     let compass = compass::Compass::new(sensors_tx_arc.clone());
     let axl = axl::Axl::new(sensors_tx_arc.clone());
     let arduino = arduino::Arduino::new(sensors_tx_arc.clone());
-
-    let mut motor = Motor::new();
-    motor.set_speed();
-
 
     let joined = server
         .join(receive_messages)
