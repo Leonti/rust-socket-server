@@ -13,8 +13,14 @@ use event::Event;
 
 type Tx = mpsc::UnboundedSender<Event>;
 
+use command::Command;
+
+type CommandTx = mpsc::UnboundedSender<Command>;
+type CommandRx = mpsc::UnboundedReceiver<Command>;
+
 pub struct Arduino {
-    tx: Arc<Mutex<Tx>>
+    tx: Arc<Mutex<Tx>>,
+    command_rx: CommandRx
 }
 
 struct LineCodec;
@@ -48,8 +54,10 @@ impl Encoder for LineCodec {
 
 impl Arduino {
 
-    pub fn new(tx: Arc<Mutex<Tx>>) -> Arduino {
-        Arduino { tx }
+    pub fn new(tx: Arc<Mutex<Tx>>) -> (Arduino, CommandTx) {
+        let (command_tx, command_rx) = mpsc::unbounded();
+
+        (Arduino { tx, command_rx }, command_tx)
     }
 
     #[allow(deprecated)]
@@ -59,18 +67,23 @@ impl Arduino {
         let (mut writer, reader) = port.framed(LineCodec).split();
 
 
-        let mut to_send = BytesMut::new();
-        to_send.extend_from_slice(b"S90\n");
+        let command_handler = self.command_rx.for_each(move |_| {
+            println!("Received serial command");
+            let mut to_send = BytesMut::new();
+            to_send.extend_from_slice(b"S90\n");
 
-        match writer.start_send(to_send) {
-            Ok(_) => println!("Sent line to serial port"),
-            Err(e) => println!("serial send error = {:?}", e)
-        };
+            match writer.start_send(to_send) {
+                Ok(_) => println!("Sent line to serial port"),
+                Err(e) => println!("serial send error = {:?}", e)
+            };
+            Ok(())
+        }).map_err(|err| {
+            println!("command reading error = {:?}", err);
+        });
 
-
-        Box::new(reader
+        let tx_arc = self.tx.clone();
+        let messages = reader
         .for_each(move |s| {
-
 
             let mut line = BytesMut::new();
             line.extend_from_slice(b"Serial sensor message\r\n");
@@ -79,14 +92,16 @@ impl Arduino {
 
             let event = Event::Generic { message: "Arduino sensor message".to_string() };
 
-            let s_tx = &self.tx.lock().unwrap();
+            let s_tx = tx_arc.lock().unwrap();
             match s_tx.unbounded_send(event) {
                 Ok(_) => (),
                 Err(e) => println!("serial send error = {:?}", e)
             }
 
             Ok(())
-        }).map_err(|e| println!("{}", e)))
+        }).map_err(|e| println!("{}", e));
+
+        Box::new(command_handler.join(messages).map(|_| ()))
     }
 
     fn print_not_connected(self) -> Box<Future<Item = (), Error = ()> + Send> {

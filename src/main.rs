@@ -242,10 +242,14 @@ pub fn main() {
 
     println!("server running on localhost:6142");
 
+    let sensors_tx_arc = Arc::new(Mutex::new(sensors_tx));
+
     let (motor_handler, motor_handler_tx) = MotorHandler::new();
+    let (arduino, arduino_tx) = arduino::Arduino::new(sensors_tx_arc.clone());
     let receive_messages = server_rx.for_each(move |line| {
         println!("Received line on server: {:?}", line);
         motor_handler_tx.unbounded_send(Command::Motor { message: "motor_message".to_string() }).unwrap();
+        arduino_tx.unbounded_send(Command::Motor { message: "arduino_message".to_string() }).unwrap();
         Ok(())
     }).map_err(|err| {
         println!("line reading error = {:?}", err);
@@ -271,14 +275,12 @@ pub fn main() {
         println!("line reading error = {:?}", err);
     });
 
-    let sensors_tx_arc = Arc::new(Mutex::new(sensors_tx));
-
     let ir = ir::Ir::new(sensors_tx_arc.clone());
     let encoder = encoder::Encoder::new(sensors_tx_arc.clone());
     let gyro = gyro::Gyro::new(sensors_tx_arc.clone());
     let compass = compass::Compass::new(sensors_tx_arc.clone());
     let axl = axl::Axl::new(sensors_tx_arc.clone());
-    let arduino = arduino::Arduino::new(sensors_tx_arc.clone());
+
 
     let joined = server
         .join(receive_messages)
