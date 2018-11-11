@@ -18,6 +18,8 @@ extern crate serde_json;
 
 #[macro_use]
 extern crate serde_derive;
+extern crate i2cdev;
+extern crate i2c_pca9685;
 
 use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
@@ -34,9 +36,19 @@ type Rx = mpsc::UnboundedReceiver<Bytes>;
 mod sensors;
 use sensors::*;
 use sensors::event::Event;
+mod command;
+use command::Command;
+
+mod motor;
+use motor::Motor;
+
+mod motor_handler;
+use motor_handler::MotorHandler;
 
 type EventTx = mpsc::UnboundedSender<Event>;
 type EventRx = mpsc::UnboundedReceiver<Event>;
+type CommandTx = mpsc::UnboundedSender<Command>;
+type CommandRx = mpsc::UnboundedReceiver<Command>;
 
 struct Shared {
     clients: HashMap<SocketAddr, Tx>,
@@ -215,6 +227,7 @@ pub fn main() {
 
     let (server_tx, server_rx): (Tx, Rx) = mpsc::unbounded();
     let (sensors_tx, sensors_rx): (EventTx, EventRx) = mpsc::unbounded();
+    let (_commands_tx, _commands_rx): (CommandTx, CommandRx) = mpsc::unbounded();
     let state = Arc::new(Mutex::new(Shared::new(server_tx)));
 
     let addr = "127.0.0.1:6142".parse().unwrap();
@@ -231,8 +244,10 @@ pub fn main() {
 
     println!("server running on localhost:6142");
 
-    let receive_messages = server_rx.for_each(|line| {
+    let (motor_handler, motor_handler_tx) = MotorHandler::new();
+    let receive_messages = server_rx.for_each(move |line| {
         println!("Received line on server: {:?}", line);
+        motor_handler_tx.unbounded_send(Command::Motor { message: "motor_message".to_string() }).unwrap();
         Ok(())
     }).map_err(|err| {
         println!("line reading error = {:?}", err);
@@ -267,6 +282,10 @@ pub fn main() {
     let axl = axl::Axl::new(sensors_tx_arc.clone());
     let arduino = arduino::Arduino::new(sensors_tx_arc.clone());
 
+    let mut motor = Motor::new();
+    motor.set_speed();
+
+
     let joined = server
         .join(receive_messages)
         .join(receive_sensor_messages)
@@ -276,6 +295,7 @@ pub fn main() {
         .join(compass.run())
         .join(axl.run())
         .join(arduino.run())
+        .join(motor_handler.run())
         .map(|_| ());
 
     tokio::run(joined);
