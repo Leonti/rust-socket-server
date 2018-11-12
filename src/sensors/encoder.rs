@@ -1,7 +1,7 @@
 use futures::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
-use futures::{Future, Stream};
+use futures::{Future, Stream, future};
 use sysfs_gpio::{Direction, Edge, Pin};
 use tokio_core::reactor::Core;
 
@@ -13,6 +13,11 @@ pub struct Encoder {
     tx: Arc<Mutex<Tx>>
 }
 
+fn print_error(e: sysfs_gpio::Error) -> Box<Future<Item = (), Error = ()> + Send> {
+    println!("Failed to start encoders: {:?}", e);
+    Box::new(future::ok(()).map_err(|_:std::io::Error| ()))
+}
+
 impl Encoder {
 
     pub fn new(tx: Arc<Mutex<Tx>>) -> Encoder {
@@ -20,12 +25,16 @@ impl Encoder {
     }
 
     pub fn run(self) -> impl Future<Item = (), Error = ()> {
-        let left_encoder = self.port_listen(12, Wheel::Left, self.tx.clone()).unwrap();
-        let right_encoder = self.port_listen(13, Wheel::Right, self.tx.clone()).unwrap();
 
-        left_encoder
-        .join(right_encoder)
-        .map(|_| ())
+        match (self.port_listen(12, Wheel::Left, self.tx.clone()), self.port_listen(13, Wheel::Right, self.tx.clone())) {
+            (Ok(left_encoder), Ok(right_encoder)) => {
+                Box::new(left_encoder
+                .join(right_encoder)
+                .map(|_| ()))
+            },
+            (Err(e), _) => print_error(e),
+            (_, Err(e)) => print_error(e)
+        }
     }
 
     fn port_listen(&self, pin_number: u64, wheel: Wheel, tx: Arc<Mutex<Tx>>) -> Result<Box<Future<Item = (), Error = ()> + Send>, sysfs_gpio::Error> {
