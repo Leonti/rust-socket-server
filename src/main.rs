@@ -248,6 +248,9 @@ pub fn main() {
     let (arduino, arduino_tx) = arduino::Arduino::new(sensors_tx_arc.clone());
     let receive_messages = server_rx.for_each(move |line| {
         println!("Received line on server: {:?}", line);
+
+        let _command: Command = serde_json::from_slice(&line).unwrap();
+
         motor_handler_tx.unbounded_send(Command::Motor { message: "motor_message".to_string() }).unwrap();
         arduino_tx.unbounded_send(Command::Motor { message: "arduino_message".to_string() }).unwrap();
         Ok(())
