@@ -8,10 +8,19 @@ pub enum ArduinoCommand {
 }
 
 #[derive(Deserialize)]
+pub enum MotorCommand {
+
+    #[serde(rename = "move")]
+    Move,
+    #[serde(rename = "stop")]
+    Stop,
+}
+
+#[derive(Deserialize)]
 pub enum Command {
     #[serde(rename = "motor")]
     Motor {
-        message: String
+        command: MotorCommand
     },
     #[serde(rename = "arduino")]
     Arduino {

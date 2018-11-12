@@ -4,11 +4,11 @@ use futures::sync::mpsc;
 use tokio::prelude::*;
 
 use motor::Motor;
-use command::Command;
+use command::MotorCommand;
 use std::sync::{Arc, Mutex};
 
-type Rx = mpsc::UnboundedReceiver<Command>;
-type Tx = mpsc::UnboundedSender<Command>;
+type Rx = mpsc::UnboundedReceiver<MotorCommand>;
+type Tx = mpsc::UnboundedSender<MotorCommand>;
 
 pub struct MotorHandler {
     rx: Rx,

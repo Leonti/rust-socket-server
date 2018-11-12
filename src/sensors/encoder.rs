@@ -20,21 +20,24 @@ impl Encoder {
     }
 
     pub fn run(self) -> impl Future<Item = (), Error = ()> {
-        self.port_listen(12, Wheel::Left, self.tx.clone())
-        .join(self.port_listen(13, Wheel::Right, self.tx.clone()))
+        let left_encoder = self.port_listen(12, Wheel::Left, self.tx.clone()).unwrap();
+        let right_encoder = self.port_listen(13, Wheel::Right, self.tx.clone()).unwrap();
+
+        left_encoder
+        .join(right_encoder)
         .map(|_| ())
     }
 
-    fn port_listen(&self, pin_number: u64, wheel: Wheel, tx: Arc<Mutex<Tx>>) -> Box<Future<Item = (), Error = ()> + Send> {
+    fn port_listen(&self, pin_number: u64, wheel: Wheel, tx: Arc<Mutex<Tx>>) -> Result<Box<Future<Item = (), Error = ()> + Send>, sysfs_gpio::Error> {
         let pin = Pin::new(pin_number);
-        pin.export().unwrap();
-        pin.set_direction(Direction::In).unwrap();
-        pin.set_edge(Edge::BothEdges).unwrap();
+        pin.export()?;
+        pin.set_direction(Direction::In)?;
+        pin.set_edge(Edge::RisingEdge)?;
 
         let l = Core::new().unwrap();
         let handle = l.handle();
 
-        let stream = pin.get_value_stream(&handle).unwrap().for_each(move |val| {
+        let stream = pin.get_value_stream(&handle)?.for_each(move |val| {
                                        println!("Pin {} changed value to {}", pin_number, val);
                                        let event = Event::Encoder { wheel: wheel.clone() };
 
@@ -48,6 +51,6 @@ impl Encoder {
                                    })
                                    .map_err(|e| print!("interrupt errored; err={:?}", e));
 
-        Box::new(stream)
+        Ok(Box::new(stream))
     }
 }

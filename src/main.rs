@@ -249,10 +249,21 @@ pub fn main() {
     let receive_messages = server_rx.for_each(move |line| {
         println!("Received line on server: {:?}", line);
 
-        let _command: Command = serde_json::from_slice(&line).unwrap();
+        let command_result: Result<Command, serde_json::Error> = serde_json::from_slice(&line);
 
-        motor_handler_tx.unbounded_send(Command::Motor { message: "motor_message".to_string() }).unwrap();
-        arduino_tx.unbounded_send(Command::Motor { message: "arduino_message".to_string() }).unwrap();
+        match command_result {
+            Ok(Command::Arduino { command }) => {
+                arduino_tx.unbounded_send(command).unwrap();
+            },
+            Ok(Command::Motor { command }) => {
+                motor_handler_tx.unbounded_send(command).unwrap();
+            },
+            Err(e) => {
+                println!("could not deserialize command = {:?}", e)
+            }
+        };
+
+
         Ok(())
     }).map_err(|err| {
         println!("line reading error = {:?}", err);

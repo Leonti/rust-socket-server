@@ -13,10 +13,10 @@ use event::Event;
 
 type Tx = mpsc::UnboundedSender<Event>;
 
-use command::Command;
+use command::ArduinoCommand;
 
-type CommandTx = mpsc::UnboundedSender<Command>;
-type CommandRx = mpsc::UnboundedReceiver<Command>;
+type CommandTx = mpsc::UnboundedSender<ArduinoCommand>;
+type CommandRx = mpsc::UnboundedReceiver<ArduinoCommand>;
 
 pub struct Arduino {
     tx: Arc<Mutex<Tx>>,
