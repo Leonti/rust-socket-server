@@ -8,10 +8,28 @@ pub enum Wheel {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ArduinoEvent {
+    // B:loadvoltage,current_ma
+    Power {
+        load_voltage: f32,
+        current_ma: f32
+    },
+    // T:room,battery
+    Temp {
+        room: f32,
+        battery: f32
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Event {
-    #[serde(rename = "encoder")]
     Encoder {
         wheel: Wheel
+    },
+    Arduino {
+        event: ArduinoEvent
     },
     Generic {
         message: String

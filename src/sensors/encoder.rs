@@ -26,7 +26,7 @@ impl Encoder {
 
     pub fn run(self) -> impl Future<Item = (), Error = ()> {
 
-        match (self.port_listen(12, Wheel::Left, self.tx.clone()), self.port_listen(13, Wheel::Right, self.tx.clone())) {
+        match (self.port_listen(23, Wheel::Left, self.tx.clone()), self.port_listen(22, Wheel::Right, self.tx.clone())) {
             (Ok(left_encoder), Ok(right_encoder)) => {
                 Box::new(left_encoder
                 .join(right_encoder)

@@ -1,5 +1,5 @@
 use futures::sync::mpsc;
-use bytes::{BytesMut, BufMut};
+use bytes::{Bytes, BytesMut, BufMut};
 use std::sync::{Arc, Mutex};
 
 use std::{io};
@@ -9,7 +9,7 @@ use tokio::prelude::*;
 
 use futures::{Future, Stream, future};
 
-use event::Event;
+use event::{Event, ArduinoEvent};
 
 type Tx = mpsc::UnboundedSender<Event>;
 
@@ -52,6 +52,17 @@ impl Encoder for LineCodec {
     }
 }
 
+fn decode_event(_bytes: Bytes) -> Result<ArduinoEvent, io::Error> {
+    Ok(ArduinoEvent::Temp { room: 25.0_f32, battery: 25.0_f32 })
+}
+
+fn encode_command(_command: ArduinoCommand) -> Result<BytesMut, io::Error> {
+    let mut to_send = BytesMut::new();
+    to_send.extend_from_slice(b"S90\n");
+
+    Ok(to_send)
+}
+
 impl Arduino {
 
     pub fn new(tx: Arc<Mutex<Tx>>) -> (Arduino, CommandTx) {
@@ -66,13 +77,12 @@ impl Arduino {
 
         let (mut writer, reader) = port.framed(LineCodec).split();
 
+        let command_handler = self.command_rx.for_each(move |command| {
 
-        let command_handler = self.command_rx.for_each(move |_| {
-            println!("Received serial command");
-            let mut to_send = BytesMut::new();
-            to_send.extend_from_slice(b"S90\n");
+            let send_result = encode_command(command)
+                .and_then(|c| writer.start_send(c));
 
-            match writer.start_send(to_send) {
+            match send_result {
                 Ok(_) => println!("Sent line to serial port"),
                 Err(e) => println!("serial send error = {:?}", e)
             };
@@ -85,17 +95,15 @@ impl Arduino {
         let messages = reader
         .for_each(move |s| {
 
-            let mut line = BytesMut::new();
-            line.extend_from_slice(b"Serial sensor message\r\n");
-            line.extend_from_slice(&s);
-            let _line = line.freeze();
-
-            let event = Event::Generic { message: "Arduino sensor message".to_string() };
-
             let s_tx = tx_arc.lock().unwrap();
-            match s_tx.unbounded_send(event) {
+            let send_result = decode_event(s.freeze())
+                .map(|event| Event::Arduino { event })
+                .and_then(|event| s_tx.unbounded_send(event)
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{}", e))));
+
+            match send_result {
                 Ok(_) => (),
-                Err(e) => println!("serial send error = {:?}", e)
+                Err(e) => println!("event send error = {:?}", e)
             }
 
             Ok(())
