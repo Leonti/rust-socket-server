@@ -2,7 +2,7 @@ use futures::sync::mpsc;
 use bytes::{Bytes, BytesMut, BufMut};
 use std::sync::{Arc, Mutex};
 
-use std::{io};
+use std::{io, str, f32};
 use tokio::io::AsyncRead;
 use tokio_io::codec::{Decoder, Encoder};
 use tokio::prelude::*;
@@ -52,8 +52,32 @@ impl Encoder for LineCodec {
     }
 }
 
-fn decode_event(_bytes: Bytes) -> Result<ArduinoEvent, io::Error> {
-    Ok(ArduinoEvent::Temp { room: 25.0_f32, battery: 25.0_f32 })
+fn parse_float(n: &str) -> Result<f32, io::Error> {
+    n.parse()
+    .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Could not parse number {}", e)))
+}
+
+fn parse_temp(temp: &str) -> Result<ArduinoEvent, io::Error> {
+    match temp.split(",").collect::<Vec<&str>>().as_slice() {
+        [room, battery] => Ok(ArduinoEvent::Temp { room: parse_float(room)?, battery: parse_float(battery)? }),
+        _ => Err(io::Error::new(io::ErrorKind::Other, format!("Could not decode temp event {}", temp)))
+    }
+}
+
+fn parse_battery(battery: &str) -> Result<ArduinoEvent, io::Error> {
+    match battery.split(",").collect::<Vec<&str>>().as_slice() {
+        [v, c] => Ok(ArduinoEvent::Power { load_voltage: parse_float(v)?, current_ma: parse_float(c)? }),
+        _ => Err(io::Error::new(io::ErrorKind::Other, format!("Could not decode battery event {}", battery)))
+    }
+}
+
+fn decode_event(bytes: Bytes) -> Result<ArduinoEvent, io::Error> {
+    let event = str::from_utf8(&bytes).unwrap();
+    match event.split(":").collect::<Vec<&str>>().as_slice() {
+        ["B", battery] => parse_battery(battery),
+        ["T", temp] => parse_temp(temp),
+        _ => Err(io::Error::new(io::ErrorKind::Other, format!("Could not decode arduino event {}", event)))
+    }   
 }
 
 fn encode_command(_command: ArduinoCommand) -> Result<BytesMut, io::Error> {
