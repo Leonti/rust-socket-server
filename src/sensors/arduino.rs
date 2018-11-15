@@ -54,7 +54,7 @@ impl Encoder for LineCodec {
 
 fn parse_float(n: &str) -> Result<f32, io::Error> {
     n.parse()
-    .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Could not parse number {}", e)))
+    .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Could not parse number '{}', {}", n, e)))
 }
 
 fn parse_temp(temp: &str) -> Result<ArduinoEvent, io::Error> {
@@ -72,12 +72,12 @@ fn parse_battery(battery: &str) -> Result<ArduinoEvent, io::Error> {
 }
 
 fn decode_event(bytes: Bytes) -> Result<ArduinoEvent, io::Error> {
-    let event = str::from_utf8(&bytes).unwrap();
+    let event = str::from_utf8(&bytes).unwrap().trim();
     match event.split(":").collect::<Vec<&str>>().as_slice() {
         ["B", battery] => parse_battery(battery),
         ["T", temp] => parse_temp(temp),
         _ => Err(io::Error::new(io::ErrorKind::Other, format!("Could not decode arduino event {}", event)))
-    }   
+    }
 }
 
 fn encode_command(_command: ArduinoCommand) -> Result<BytesMut, io::Error> {

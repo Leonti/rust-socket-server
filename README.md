@@ -39,3 +39,9 @@ linker = "x86_64-linux-musl-gcc"
 `rustup target add x86_64-unknown-linux-musl`
 `cargo build --target=x86_64-unknown-linux-musl`  or
 `cargo check --target=x86_64-unknown-linux-musl`
+
+```
+Received sensor message, broadcasting: "{\"generic\":{\"message\":\"Compass sensor message\"}}"
+Received sensor message, broadcasting: "{\"generic\":{\"message\":\"Axl sensor message\"}}"
+Received sensor message, broadcasting: "{\"arduino\":{\"event\":{\"power\":{\"load_voltage\":2.28,\"current_ma\":0.1}}}}"
+```
