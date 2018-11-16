@@ -27,8 +27,8 @@ use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 
+use std::io::Write;
 use std::process;
-use std::io::{Write};
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -224,14 +224,15 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
 }
 
 pub fn main() {
-
     let i2c_output = process::Command::new("i2cdetect").arg("-y 1").output();
     match i2c_output {
-        Ok(output) => { 
-            io::stdout().write(&output.stdout).expect("Could not wrtie to stdout");
+        Ok(output) => {
+            io::stdout()
+                .write(&output.stdout)
+                .expect("Could not wrtie to stdout");
             ()
-        },
-        Err(_) => println!("Could not read from i2cdetect")
+        }
+        Err(_) => println!("Could not read from i2cdetect"),
     };
 
     let (server_tx, server_rx): (Tx, Rx) = mpsc::unbounded();
