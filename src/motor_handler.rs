@@ -3,7 +3,7 @@ use futures::sync::mpsc;
 use tokio::prelude::*;
 
 use command::MotorCommand;
-use event::EncoderEvent;
+use event::{EncoderEvent, Wheel};
 use motor::Motor;
 use std::sync::{Arc, Mutex};
 
@@ -51,7 +51,9 @@ impl MotorHandler {
 
     pub fn run(self) -> impl Future<Item = (), Error = ()> {
         let motor_arc = self.motor;
-        self.rx_command
+
+        let command_handler = self
+            .rx_command
             .for_each(move |command| {
                 println!("Received motor command");
                 let mut motor_option = motor_arc.lock().unwrap();
@@ -70,9 +72,23 @@ impl MotorHandler {
                 };
 
                 Ok(())
-            })
-            .map_err(|err| {
+            }).map_err(|err| {
                 println!("command reading error = {:?}", err);
-            })
+            });
+
+        let encoder_handler = self
+            .rx_event
+            .for_each(move |encoder_event| {
+                match encoder_event.wheel {
+                    Wheel::Left => (),
+                    Wheel::Right => (),
+                };
+
+                Ok(())
+            }).map_err(|err| {
+                println!("envoder event error = {:?}", err);
+            });
+
+        command_handler.join(encoder_handler).map(|_| ())
     }
 }

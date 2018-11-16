@@ -236,8 +236,7 @@ pub fn main() {
         .for_each(move |socket| {
             process(socket, local_state.clone());
             Ok(())
-        })
-        .map_err(|err| {
+        }).map_err(|err| {
             println!("accept error = {:?}", err);
         });
 
@@ -264,8 +263,7 @@ pub fn main() {
             };
 
             Ok(())
-        })
-        .map_err(|err| {
+        }).map_err(|err| {
             println!("line reading error = {:?}", err);
         });
 
@@ -294,8 +292,7 @@ pub fn main() {
             }
 
             Ok(())
-        })
-        .map_err(|err| {
+        }).map_err(|err| {
             println!("line reading error = {:?}", err);
         });
 

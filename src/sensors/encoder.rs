@@ -68,8 +68,7 @@ impl Encoder {
                 }
 
                 Ok(())
-            })
-            .map_err(|e| print!("interrupt errored; err={:?}", e));
+            }).map_err(|e| print!("interrupt errored; err={:?}", e));
 
         Ok(Box::new(stream))
     }

@@ -31,7 +31,6 @@ impl Axl {
                 }
 
                 Ok(())
-            })
-            .map_err(|e| print!("interval errored; err={:?}", e))
+            }).map_err(|e| print!("interval errored; err={:?}", e))
     }
 }
