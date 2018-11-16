@@ -45,3 +45,6 @@ Received sensor message, broadcasting: "{\"generic\":{\"message\":\"Compass sens
 Received sensor message, broadcasting: "{\"generic\":{\"message\":\"Axl sensor message\"}}"
 Received sensor message, broadcasting: "{\"arduino\":{\"event\":{\"power\":{\"load_voltage\":2.28,\"current_ma\":0.1}}}}"
 ```
+
+https://github.com/rust-embedded/rust-i2cdev/blob/master/examples/sensors.rs  
+https://github.com/PhilipTrauner/rust-mcp3008  
