@@ -2,16 +2,14 @@
 
 #[derive(Deserialize)]
 pub enum ArduinoCommand {
-
     #[serde(rename = "off")]
-    Off
+    Off,
 }
 
 #[derive(Deserialize)]
 pub enum MotorCommand {
-
     #[serde(rename = "move")]
-    Move,
+    Move { speed: u8, ticks: u32 },
     #[serde(rename = "stop")]
     Stop,
 }
@@ -19,11 +17,7 @@ pub enum MotorCommand {
 #[derive(Deserialize)]
 pub enum Command {
     #[serde(rename = "motor")]
-    Motor {
-        command: MotorCommand
-    },
+    Motor { command: MotorCommand },
     #[serde(rename = "arduino")]
-    Arduino {
-        command: ArduinoCommand
-    }
+    Arduino { command: ArduinoCommand },
 }

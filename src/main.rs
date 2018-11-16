@@ -7,25 +7,25 @@ extern crate tokio;
 #[macro_use]
 extern crate futures;
 extern crate bytes;
-extern crate tokio_io;
-extern crate tokio_codec;
-extern crate tokio_serial;
 extern crate sysfs_gpio;
+extern crate tokio_codec;
 extern crate tokio_core;
+extern crate tokio_io;
+extern crate tokio_serial;
 
 extern crate serde;
 extern crate serde_json;
 
 #[macro_use]
 extern crate serde_derive;
-extern crate i2cdev;
 extern crate i2c_pca9685;
+extern crate i2cdev;
 
+use bytes::{BufMut, Bytes, BytesMut};
+use futures::sync::mpsc;
 use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
-use futures::sync::mpsc;
-use bytes::{BytesMut, Bytes, BufMut};
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -34,8 +34,8 @@ type Tx = mpsc::UnboundedSender<Bytes>;
 type Rx = mpsc::UnboundedReceiver<Bytes>;
 
 mod sensors;
-use sensors::*;
 use sensors::event::Event;
+use sensors::*;
 mod command;
 use command::Command;
 
@@ -50,7 +50,7 @@ type CommandRx = mpsc::UnboundedReceiver<Command>;
 
 struct Shared {
     clients: HashMap<SocketAddr, Tx>,
-    server_tx: Tx
+    server_tx: Tx,
 }
 
 struct Client {
@@ -71,21 +71,16 @@ impl Shared {
     fn new(server_tx: Tx) -> Self {
         Shared {
             clients: HashMap::new(),
-            server_tx
+            server_tx,
         }
     }
 }
 
 impl Client {
-
-    fn new(state: Arc<Mutex<Shared>>,
-           lines: Lines) -> Client
-    {
-
+    fn new(state: Arc<Mutex<Shared>>, lines: Lines) -> Client {
         let addr = lines.socket.peer_addr().unwrap();
         let (tx, rx) = mpsc::unbounded();
-        state.lock().unwrap()
-            .clients.insert(addr, tx);
+        state.lock().unwrap().clients.insert(addr, tx);
 
         Client {
             lines,
@@ -108,7 +103,7 @@ impl Future for Client {
                 Async::Ready(Some(v)) => {
                     self.lines.buffer(&v);
 
-                    if i+1 == LINES_PER_TICK {
+                    if i + 1 == LINES_PER_TICK {
                         task::current().notify();
                     }
                 }
@@ -119,16 +114,21 @@ impl Future for Client {
         let _ = self.lines.poll_flush()?;
 
         while let Async::Ready(line) = self.lines.poll()? {
-
             if let Some(message) = line {
                 let mut line = BytesMut::new();
                 line.extend_from_slice(&message);
 
                 let line = line.freeze();
 
-                match &self.state.lock().unwrap().server_tx.unbounded_send(line.clone()) {
+                match &self
+                    .state
+                    .lock()
+                    .unwrap()
+                    .server_tx
+                    .unbounded_send(line.clone())
+                {
                     Ok(_) => (),
-                    Err(e) => println!("send error = {:?}", e)
+                    Err(e) => println!("send error = {:?}", e),
                 }
             } else {
                 return Ok(Async::Ready(()));
@@ -140,8 +140,7 @@ impl Future for Client {
 
 impl Drop for Client {
     fn drop(&mut self) {
-        self.state.lock().unwrap().clients
-            .remove(&self.addr);
+        self.state.lock().unwrap().clients.remove(&self.addr);
     }
 }
 
@@ -188,9 +187,11 @@ impl Stream for Lines {
     type Error = io::Error;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-
         let sock_closed = self.fill_read_buf()?.is_ready();
-        let pos = self.rd.windows(2).enumerate()
+        let pos = self
+            .rd
+            .windows(2)
+            .enumerate()
             .find(|&(_, bytes)| bytes == b"\r\n")
             .map(|(i, _)| i);
 
@@ -212,17 +213,14 @@ impl Stream for Lines {
 fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
     let lines = Lines::new(socket);
 
-    let peer = Client::new(
-        state,
-        lines).map_err(|e| {
-            println!("connection error = {:?}", e);
-        });
+    let peer = Client::new(state, lines).map_err(|e| {
+        println!("connection error = {:?}", e);
+    });
 
     tokio::spawn(peer);
 }
 
 pub fn main() {
-
     let (server_tx, server_rx): (Tx, Rx) = mpsc::unbounded();
     let (sensors_tx, sensors_rx): (EventTx, EventRx) = mpsc::unbounded();
     let (_commands_tx, _commands_rx): (CommandTx, CommandRx) = mpsc::unbounded();
@@ -233,68 +231,79 @@ pub fn main() {
     let listener = TcpListener::bind(&addr).unwrap();
 
     let local_state = state.clone();
-    let server = listener.incoming().for_each(move |socket| {
-        process(socket, local_state.clone());
-        Ok(())
-    }).map_err(|err| {
-        println!("accept error = {:?}", err);
-    });
+    let server = listener
+        .incoming()
+        .for_each(move |socket| {
+            process(socket, local_state.clone());
+            Ok(())
+        })
+        .map_err(|err| {
+            println!("accept error = {:?}", err);
+        });
 
     println!("server running on localhost:6142");
 
     let sensors_tx_arc = Arc::new(Mutex::new(sensors_tx));
 
-    let (motor_handler, motor_handler_tx) = MotorHandler::new();
+    let (motor_handler, motor_handler_tx_command, motor_handler_tx_event) = MotorHandler::new();
     let (arduino, arduino_tx) = arduino::Arduino::new(sensors_tx_arc.clone());
-    let receive_messages = server_rx.for_each(move |line| {
-        println!("Received line on server: {:?}", line);
+    let receive_messages = server_rx
+        .for_each(move |line| {
+            println!("Received line on server: {:?}", line);
 
-        let command_result: Result<Command, serde_json::Error> = serde_json::from_slice(&line);
+            let command_result: Result<Command, serde_json::Error> = serde_json::from_slice(&line);
 
-        match command_result {
-            Ok(Command::Arduino { command }) => {
-                arduino_tx.unbounded_send(command).unwrap();
-            },
-            Ok(Command::Motor { command }) => {
-                motor_handler_tx.unbounded_send(command).unwrap();
-            },
-            Err(e) => {
-                println!("could not deserialize command = {:?}", e)
-            }
-        };
+            match command_result {
+                Ok(Command::Arduino { command }) => {
+                    arduino_tx.unbounded_send(command).unwrap();
+                }
+                Ok(Command::Motor { command }) => {
+                    motor_handler_tx_command.unbounded_send(command).unwrap();
+                }
+                Err(e) => println!("could not deserialize command = {:?}", e),
+            };
 
-
-        Ok(())
-    }).map_err(|err| {
-        println!("line reading error = {:?}", err);
-    });
+            Ok(())
+        })
+        .map_err(|err| {
+            println!("line reading error = {:?}", err);
+        });
 
     let local_state = state.clone();
-    let receive_sensor_messages = sensors_rx.for_each(move |event| {
-        let event_json = serde_json::to_string(&event).unwrap();
-        println!("Received sensor message, broadcasting: {:?}", &event_json);
+    let receive_sensor_messages = sensors_rx
+        .for_each(move |event| {
+            let event_json = serde_json::to_string(&event).unwrap();
+            println!("Received sensor message, broadcasting: {:?}", &event_json);
 
-        let mut line = BytesMut::new();
-        line.extend_from_slice(event_json.as_bytes());
-        line.extend_from_slice(b"\r\n");
-        let line = line.freeze();
+            match event {
+                Event::Encoder { event: e } => {
+                    motor_handler_tx_event.unbounded_send(e).unwrap();
+                    ()
+                }
+                _ => (),
+            };
 
-        let shared = local_state.lock().unwrap();
-        for (_, tx) in &shared.clients {
-            tx.unbounded_send(line.clone()).unwrap();
-        }
+            let mut line = BytesMut::new();
+            line.extend_from_slice(event_json.as_bytes());
+            line.extend_from_slice(b"\r\n");
+            let line = line.freeze();
 
-        Ok(())
-    }).map_err(|err| {
-        println!("line reading error = {:?}", err);
-    });
+            let shared = local_state.lock().unwrap();
+            for (_, tx) in &shared.clients {
+                tx.unbounded_send(line.clone()).unwrap();
+            }
+
+            Ok(())
+        })
+        .map_err(|err| {
+            println!("line reading error = {:?}", err);
+        });
 
     let ir = ir::Ir::new(sensors_tx_arc.clone());
     let encoder = encoder::Encoder::new(sensors_tx_arc.clone());
     let gyro = gyro::Gyro::new(sensors_tx_arc.clone());
     let compass = compass::Compass::new(sensors_tx_arc.clone());
     let axl = axl::Axl::new(sensors_tx_arc.clone());
-
 
     let joined = server
         .join(receive_messages)

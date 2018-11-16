@@ -1,7 +1,7 @@
-pub mod ir;
-pub mod encoder;
-pub mod gyro;
-pub mod compass;
-pub mod axl;
 pub mod arduino;
+pub mod axl;
+pub mod compass;
+pub mod encoder;
 pub mod event;
+pub mod gyro;
+pub mod ir;
