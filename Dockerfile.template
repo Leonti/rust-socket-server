@@ -16,7 +16,7 @@ RUN apt-get -q update && apt-get install -yq --no-install-recommends libudev-dev
 FROM base as rust
 
 # Install build tools
-RUN apt-get -q update && apt-get install -yq --no-install-recommends build-essential curl file gcc-8-multilib-arm-linux-gnueabihf
+RUN apt-get -q update && apt-get install -yq --no-install-recommends build-essential curl file
 
 ENV PATH=/root/.cargo/bin:$PATH
 
