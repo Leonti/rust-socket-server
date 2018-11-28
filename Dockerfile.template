@@ -57,7 +57,7 @@ COPY rust-toolchain ./
 RUN cargo build --release --target=armv7-unknown-linux-musleabihf
 
 # Remove the fake app build artifacts
-RUN rm -rf target/release/rover_server* target/release/deps/rover_server-*
+RUN rm -rf target/armv7-unknown-linux-musleabihf/release/rover_server* target/armv7-unknown-linux-musleabihf/release/deps/rover_server-*
 
 ################################################################################
 # Builder
@@ -88,7 +88,7 @@ FROM base
 WORKDIR /app
 
 # Copy binary from builder image
-COPY --from=builder /build/app/target/release/rover_server .
+COPY --from=builder /build/app/target/armv7-unknown-linux-musleabihf/release/rover_server .
 
 # Copy other folders required by the application. Example:
 # COPY --from=builder /build/app/assets assets
