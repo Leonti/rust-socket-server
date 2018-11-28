@@ -1,0 +1,97 @@
+################################################################################
+# Base image
+################################################################################
+
+FROM resin/%%RESIN_MACHINE_NAME%%-debian as base
+
+ENV INITSYSTEM=on
+ENV DEBIAN_FRONTEND=noninteractive
+
+FROM base as runtime
+RUN apt-get -q update && apt-get install -yq --no-install-recommends libudev-dev i2c-tools
+
+################################################################################
+# Rust image
+################################################################################
+
+FROM base as rust
+
+# Install build tools
+RUN apt-get -q update && apt-get install -yq --no-install-recommends build-essential curl file
+
+ENV PATH=/root/.cargo/bin:$PATH
+
+# Modify `uname -m` for `arm7hf` and `rpi` RESIN_ARCH values:
+# https://forums.resin.io/t/rustup-fails-for-armv8l/2661
+# -> https://forums.resin.io/t/resin-build-variable-inconsistency/1571/2
+# -> https://github.com/resin-io/docs/issues/739
+#
+# https://github.com/rust-lang-nursery/rustup.rs/issues/1055
+WORKDIR /build
+COPY scripts/modify-uname.sh .
+RUN ./modify-uname.sh %%RESIN_ARCH%%
+
+# Install rustup downloading the version specified by the standard rust-toolchain file
+COPY rust-toolchain .
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain `cat rust-toolchain`
+
+################################################################################
+# Dependencies
+################################################################################
+
+FROM rust as dependencies
+
+WORKDIR /build
+
+# Create new fake project ($USER is needed by `cargo new`)
+RUN USER=root cargo new app
+
+WORKDIR /build/app
+
+# Copy real app dependencies
+COPY Cargo.* ./
+# Copy the file specifying the Rust version to use
+COPY rust-toolchain ./
+
+# Build fake project with real dependencies
+RUN cargo build --release
+
+# Remove the fake app build artifacts
+RUN rm -rf target/release/rover_server* target/release/deps/rover_server-*
+
+################################################################################
+# Builder
+################################################################################
+
+FROM rust as builder
+
+# We do not want to download deps, update registry, ... again
+COPY --from=dependencies /root/.cargo /root/.cargo
+
+WORKDIR /build/app
+
+# Copy everything, not just source code
+COPY . .
+
+# Update already built deps from dependencies image
+COPY --from=dependencies /build/app/target target
+
+# Build real app
+RUN cargo build --release
+
+################################################################################
+# Final image
+################################################################################
+
+FROM runtime
+
+WORKDIR /app
+
+# Copy binary from builder image
+COPY --from=builder /build/app/target/release/rover_server .
+
+# Copy other folders required by the application. Example:
+# COPY --from=builder /build/app/assets assets
+
+# Launch application
+CMD ["./rover_server"]
