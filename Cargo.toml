@@ -9,7 +9,6 @@ tokio = "0.1.11"
 tokio-core = "*"
 tokio-io = "*"
 tokio-codec = "*"
-tokio-serial = "3.1.0"
 futures = "0.1.25"
 bytes = "0.4.10"
 serde = "1.0.80"
@@ -22,3 +21,7 @@ mcp3008 = "1.0.0"
 [dependencies.sysfs_gpio]
 version = "0.5.3"
 features = ["tokio"]
+
+[dependencies.tokio-serial]
+version = "3.1.0"
+default-features = false
