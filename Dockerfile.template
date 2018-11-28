@@ -7,7 +7,6 @@ FROM resin/%%RESIN_MACHINE_NAME%%-debian as base
 ENV INITSYSTEM=on
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM base as runtime
 RUN apt-get -q update && apt-get install -yq --no-install-recommends libudev-dev i2c-tools
 
 ################################################################################
@@ -83,7 +82,7 @@ RUN cargo build --release
 # Final image
 ################################################################################
 
-FROM runtime
+FROM base
 
 WORKDIR /app
 
