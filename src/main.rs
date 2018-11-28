@@ -227,7 +227,7 @@ pub fn main() {
     let i2c_output = process::Command::new("i2cdetect").arg("-y 1").output();
     match i2c_output {
         Ok(output) => {
-            io::stdout()
+            std::io::stdout()
                 .write(&output.stdout)
                 .expect("Could not wrtie to stdout");
             ()
