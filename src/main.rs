@@ -9,7 +9,6 @@ extern crate futures;
 extern crate bytes;
 extern crate sysfs_gpio;
 extern crate tokio_codec;
-extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_serial;
 
@@ -315,12 +314,12 @@ pub fn main() {
     let gyro = gyro::Gyro::new(sensors_tx_arc.clone());
     let compass = compass::Compass::new(sensors_tx_arc.clone());
     let axl = axl::Axl::new(sensors_tx_arc.clone());
+    encoder.run();
 
     let joined = server
         .join(receive_messages)
         .join(receive_sensor_messages)
         .join(ir.run())
-        .join(encoder.run())
         .join(gyro.run())
         .join(compass.run())
         .join(axl.run())

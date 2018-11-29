@@ -6,7 +6,6 @@ authors = ["Leonti Bielski"]
 [dependencies]
 bufstream = "0.1"
 tokio = "0.1.11"
-tokio-core = "*"
 tokio-io = "*"
 tokio-codec = "*"
 futures = "0.1.25"
@@ -18,7 +17,4 @@ serde_json = "1.0.33"
 i2cdev = "0.3.1"
 i2c-pca9685 = "0.1.8"
 mcp3008 = "1.0.0"
-
-[dependencies.sysfs_gpio]
-version = "0.5.3"
-features = ["tokio"]
+sysfs_gpio = "0.5.3"

@@ -1,9 +1,8 @@
 use futures::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
-use futures::{future, Future, Stream};
+use std::thread;
 use sysfs_gpio::{Direction, Edge, Pin};
-use tokio_core::reactor::Core;
 
 use event::{EncoderEvent, Event, Wheel};
 
@@ -13,9 +12,34 @@ pub struct Encoder {
     tx: Arc<Mutex<Tx>>,
 }
 
-fn print_error(e: sysfs_gpio::Error) -> Box<Future<Item = (), Error = ()> + Send> {
-    println!("Failed to start encoders: {:?}", e);
-    Box::new(future::ok(()).map_err(|_: std::io::Error| ()))
+fn port_listen(pin_number: u64, wheel: Wheel, tx: Arc<Mutex<Tx>>) -> sysfs_gpio::Result<()> {
+    let input = Pin::new(pin_number);
+
+    input.with_exported(|| {
+        input.set_direction(Direction::In)?;
+        input.set_edge(Edge::RisingEdge)?;
+        let mut poller = input.get_poller()?;
+        loop {
+            match poller.poll(1000)? {
+                Some(val) => {
+                    println!("Pin {} changed value to {}", pin_number, val);
+                    let encoder_event = EncoderEvent {
+                        wheel: wheel.clone(),
+                    };
+                    let event = Event::Encoder {
+                        event: encoder_event,
+                    };
+
+                    let s_tx = tx.lock().unwrap();
+                    match s_tx.unbounded_send(event) {
+                        Ok(_) => (),
+                        Err(e) => println!("encoder send error = {:?}", e),
+                    }
+                }
+                None => (),
+            }
+        }
+    })
 }
 
 impl Encoder {
@@ -23,53 +47,19 @@ impl Encoder {
         Encoder { tx }
     }
 
-    pub fn run(self) -> impl Future<Item = (), Error = ()> {
-        match (
-            self.port_listen(23, Wheel::Left, self.tx.clone()),
-            self.port_listen(22, Wheel::Right, self.tx.clone()),
-        ) {
-            (Ok(left_encoder), Ok(right_encoder)) => {
-                Box::new(left_encoder.join(right_encoder).map(|_| ()))
-            }
-            (Err(e), _) => print_error(e),
-            (_, Err(e)) => print_error(e),
-        }
-    }
+    pub fn run(self) -> () {
+        let left_tx = self.tx.clone();
+        thread::spawn(move || match port_listen(23, Wheel::Left, left_tx) {
+            Ok(_) => (),
+            Err(e) => println!("Interrupt failed on pin {} {}", 23, e),
+        });
 
-    fn port_listen(
-        &self,
-        pin_number: u64,
-        wheel: Wheel,
-        tx: Arc<Mutex<Tx>>,
-    ) -> Result<Box<Future<Item = (), Error = ()> + Send>, sysfs_gpio::Error> {
-        let pin = Pin::new(pin_number);
-        pin.export()?;
-        pin.set_direction(Direction::In)?;
-        pin.set_edge(Edge::RisingEdge)?;
+        let right_tx = self.tx.clone();
+        thread::spawn(move || match port_listen(22, Wheel::Right, right_tx) {
+            Ok(_) => (),
+            Err(e) => println!("Interrupt failed on pin {} {}", 22, e),
+        });
 
-        let l = Core::new().unwrap();
-        let handle = l.handle();
-
-        let stream = pin
-            .get_value_stream(&handle)?
-            .for_each(move |val| {
-                println!("Pin {} changed value to {}", pin_number, val);
-                let encoder_event = EncoderEvent {
-                    wheel: wheel.clone(),
-                };
-                let event = Event::Encoder {
-                    event: encoder_event,
-                };
-
-                let s_tx = tx.lock().unwrap();
-                match s_tx.unbounded_send(event) {
-                    Ok(_) => (),
-                    Err(e) => println!("encoder send error = {:?}", e),
-                }
-
-                Ok(())
-            }).map_err(|e| print!("interrupt errored; err={:?}", e));
-
-        Ok(Box::new(stream))
+        ()
     }
 }
