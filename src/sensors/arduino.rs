@@ -99,11 +99,17 @@ fn decode_event(bytes: Bytes) -> Result<ArduinoEvent, io::Error> {
     }
 }
 
-fn encode_command(_command: ArduinoCommand) -> Result<BytesMut, io::Error> {
-    let mut to_send = BytesMut::new();
-    to_send.extend_from_slice(b"S90\n");
+fn encode_command(command: ArduinoCommand) -> Result<BytesMut, io::Error> {
 
-    Ok(to_send)
+    match command {
+        ArduinoCommand::Off => {
+            let mut to_send = BytesMut::new();
+            to_send.extend_from_slice(b"O20\n");
+            Ok(to_send)
+        }
+    }
+
+    // to_send.extend_from_slice(b"S90\n"); - for camera
 }
 
 impl Arduino {

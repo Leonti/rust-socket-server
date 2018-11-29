@@ -239,7 +239,7 @@ pub fn main() {
     let (_commands_tx, _commands_rx): (CommandTx, CommandRx) = mpsc::unbounded();
     let state = Arc::new(Mutex::new(Shared::new(server_tx)));
 
-    let addr = "127.0.0.1:6142".parse().unwrap();
+    let addr = "0.0.0.0:5000".parse().unwrap();
 
     let listener = TcpListener::bind(&addr).unwrap();
 
