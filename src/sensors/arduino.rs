@@ -100,7 +100,6 @@ fn decode_event(bytes: Bytes) -> Result<ArduinoEvent, io::Error> {
 }
 
 fn encode_command(command: ArduinoCommand) -> Result<BytesMut, io::Error> {
-
     match command {
         ArduinoCommand::Off => {
             let mut to_send = BytesMut::new();

@@ -18,3 +18,8 @@ i2cdev = "0.3.1"
 i2c-pca9685 = "0.1.8"
 mcp3008 = "1.0.0"
 sysfs_gpio = "0.5.3"
+
+[dependencies.tokio-tungstenite]
+version = "0.6.0"
+default-features = false
+features = ["connect"]

@@ -12,6 +12,9 @@ extern crate tokio_codec;
 extern crate tokio_io;
 extern crate tokio_serial;
 
+//extern crate tungstenite;
+extern crate tokio_tungstenite;
+
 extern crate serde;
 extern crate serde_json;
 
@@ -25,6 +28,9 @@ use futures::sync::mpsc;
 use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
+
+//use tungstenite::protocol::Message;
+use tokio_tungstenite::accept_async;
 
 use std::io::Write;
 use std::process;
@@ -222,6 +228,64 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
     tokio::spawn(peer);
 }
 
+fn process_ws(
+    socket: TcpStream,
+    _state: Arc<Mutex<Shared>>,
+) -> Box<Future<Item = (), Error = ()> + Send> {
+    let addr = socket
+        .peer_addr()
+        .expect("connected streams should have a peer address");
+    let future = accept_async(socket)
+        .and_then(move |ws_stream| {
+            println!("New WebSocket connection: {}", addr);
+
+            let (_tx, rx) = futures::sync::mpsc::unbounded();
+            // insert tx into state here
+            let (sink, source) = ws_stream.split();
+
+            let ws_reader = source.for_each(move |message| {
+                println!("Received a ws message: {}", message);
+
+                /*
+            // For each open connection except the sender, send the
+            // string via the channel.
+            let mut conns = connections.lock().unwrap();
+            let iter = conns.iter_mut()
+                            .filter(|&(&k, _)| k != addr)
+                            .map(|(_, v)| v);
+            for tx in iter {
+                tx.unbounded_send(message.clone()).unwrap();
+            }
+            */
+                Ok(())
+            });
+
+            let ws_writer = rx.fold(sink, |mut sink, msg| {
+                use futures::Sink;
+                sink.start_send(msg).unwrap();
+                Ok(sink)
+            });
+
+            let connection = ws_reader
+                .map(|_| ())
+                .map_err(|_| ())
+                .select(ws_writer.map(|_| ()).map_err(|_| ()));
+
+            tokio::spawn(connection.then(move |_| {
+                // remove socket from state here
+                //  connections_inner.lock().unwrap().remove(&addr);
+                println!("Connection closed.");
+                Ok(())
+            }));
+
+            Ok(())
+        }).map_err(|e| {
+            println!("Error during the websocket handshake occurred: {}", e);
+        });
+
+    Box::new(future)
+}
+
 pub fn main() {
     let i2c_output = process::Command::new("i2cdetect").arg("-y 1").output();
     match i2c_output {
@@ -240,8 +304,20 @@ pub fn main() {
     let state = Arc::new(Mutex::new(Shared::new(server_tx)));
 
     let addr = "0.0.0.0:5000".parse().unwrap();
+    let ws_addr = "0.0.0.0:5001".parse().unwrap();
 
     let listener = TcpListener::bind(&addr).unwrap();
+    let ws_listener = TcpListener::bind(&ws_addr).unwrap();
+
+    let local_state = state.clone();
+    let ws_server = ws_listener
+        .incoming()
+        .for_each(move |socket| {
+            process_ws(socket, local_state.clone());
+            Ok(())
+        }).map_err(|err| {
+            println!("ws accept error = {:?}", err);
+        });
 
     let local_state = state.clone();
     let server = listener
@@ -250,7 +326,7 @@ pub fn main() {
             process(socket, local_state.clone());
             Ok(())
         }).map_err(|err| {
-            println!("accept error = {:?}", err);
+            println!("ws accept error = {:?}", err);
         });
 
     println!("server running on localhost:6142");
@@ -317,6 +393,7 @@ pub fn main() {
     encoder.run();
 
     let joined = server
+        .join(ws_server)
         .join(receive_messages)
         .join(receive_sensor_messages)
         .join(ir.run())
