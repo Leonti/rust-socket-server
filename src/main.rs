@@ -14,6 +14,7 @@ extern crate tokio_serial;
 
 //extern crate tungstenite;
 extern crate tokio_tungstenite;
+use std::io::{Error, ErrorKind};
 
 extern crate serde;
 extern crate serde_json;
@@ -31,9 +32,11 @@ use tokio::prelude::*;
 
 //use tungstenite::protocol::Message;
 use tokio_tungstenite::accept_async;
+use tokio_tungstenite::tungstenite::Message;
 
 use std::io::Write;
 use std::process;
+use std::str;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -56,8 +59,11 @@ type EventRx = mpsc::UnboundedReceiver<Event>;
 type CommandTx = mpsc::UnboundedSender<Command>;
 type CommandRx = mpsc::UnboundedReceiver<Command>;
 
+type WsTx = mpsc::UnboundedSender<Message>;
+
 struct Shared {
     clients: HashMap<SocketAddr, Tx>,
+    ws_clients: HashMap<SocketAddr, WsTx>,
     server_tx: Tx,
 }
 
@@ -79,6 +85,7 @@ impl Shared {
     fn new(server_tx: Tx) -> Self {
         Shared {
             clients: HashMap::new(),
+            ws_clients: HashMap::new(),
             server_tx,
         }
     }
@@ -230,33 +237,37 @@ fn process(socket: TcpStream, state: Arc<Mutex<Shared>>) {
 
 fn process_ws(
     socket: TcpStream,
-    _state: Arc<Mutex<Shared>>,
-) -> Box<Future<Item = (), Error = ()> + Send> {
+    state: Arc<Mutex<Shared>>,
+) -> Box<Future<Item = (), Error = io::Error> + Send> {
     let addr = socket
         .peer_addr()
         .expect("connected streams should have a peer address");
+    let state_clone = state.clone();
     let future = accept_async(socket)
         .and_then(move |ws_stream| {
             println!("New WebSocket connection: {}", addr);
 
-            let (_tx, rx) = futures::sync::mpsc::unbounded();
-            // insert tx into state here
+            let (tx, rx) = futures::sync::mpsc::unbounded();
+            state.lock().unwrap().ws_clients.insert(addr, tx);
             let (sink, source) = ws_stream.split();
 
             let ws_reader = source.for_each(move |message| {
                 println!("Received a ws message: {}", message);
 
-                /*
-            // For each open connection except the sender, send the
-            // string via the channel.
-            let mut conns = connections.lock().unwrap();
-            let iter = conns.iter_mut()
-                            .filter(|&(&k, _)| k != addr)
-                            .map(|(_, v)| v);
-            for tx in iter {
-                tx.unbounded_send(message.clone()).unwrap();
-            }
-            */
+                let mut line = BytesMut::new();
+                line.extend_from_slice(&message.into_data());
+                let line = line.freeze();
+
+                match state_clone
+                    .lock()
+                    .unwrap()
+                    .server_tx
+                    .unbounded_send(line.clone())
+                {
+                    Ok(_) => (),
+                    Err(e) => println!("send error = {:?}", e),
+                }
+
                 Ok(())
             });
 
@@ -274,14 +285,13 @@ fn process_ws(
             tokio::spawn(connection.then(move |_| {
                 // remove socket from state here
                 //  connections_inner.lock().unwrap().remove(&addr);
-                println!("Connection closed.");
+                state.lock().unwrap().ws_clients.remove(&addr);
+                println!("Websocket connection closed: {}", addr);
                 Ok(())
             }));
 
             Ok(())
-        }).map_err(|e| {
-            println!("Error during the websocket handshake occurred: {}", e);
-        });
+        }).map_err(|e| Error::new(ErrorKind::Other, e));
 
     Box::new(future)
 }
@@ -312,10 +322,8 @@ pub fn main() {
     let local_state = state.clone();
     let ws_server = ws_listener
         .incoming()
-        .for_each(move |socket| {
-            process_ws(socket, local_state.clone());
-            Ok(())
-        }).map_err(|err| {
+        .for_each(move |socket| process_ws(socket, local_state.clone()))
+        .map_err(|err| {
             println!("ws accept error = {:?}", err);
         });
 
@@ -378,6 +386,13 @@ pub fn main() {
             let shared = local_state.lock().unwrap();
             for (_, tx) in &shared.clients {
                 tx.unbounded_send(line.clone()).unwrap();
+            }
+
+            for (_, ws_tx) in &shared.ws_clients {
+                ws_tx
+                    .unbounded_send(Message::Text(
+                        str::from_utf8(&line).unwrap().trim().to_string(),
+                    )).unwrap();
             }
 
             Ok(())
