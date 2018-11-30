@@ -30,11 +30,9 @@ use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::prelude::*;
 
-//use tungstenite::protocol::Message;
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 
-use std::io::Write;
 use std::process;
 use std::str;
 
@@ -297,15 +295,11 @@ fn process_ws(
 }
 
 pub fn main() {
-    let i2c_output = process::Command::new("i2cdetect").arg("-y 1").output();
+    let i2c_output = process::Command::new("i2cdetect").arg("-y").arg("1").output();
     match i2c_output {
         Ok(output) => {
             println!("{}", str::from_utf8(&output.stdout).unwrap());
-            println!("{}", str::from_utf8(&output.stderr).unwrap());
-            std::io::stdout()
-                .write(&output.stdout)
-                .expect("Could not wrtie to stdout");
-            ()
+            println!("{}", str::from_utf8(&output.stderr).unwrap())
         }
         Err(_) => println!("Could not read from i2cdetect"),
     };
