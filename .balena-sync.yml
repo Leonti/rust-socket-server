@@ -1,0 +1,6 @@
+local_balenaos: {}
+uuid: d206b55
+destination: /app
+ignore:
+  - .git
+  - node_modules/

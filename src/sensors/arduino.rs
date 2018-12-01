@@ -94,7 +94,7 @@ fn decode_event(bytes: Bytes) -> Result<ArduinoEvent, io::Error> {
         ["T", temp] => parse_temp(temp),
         _ => Err(io::Error::new(
             io::ErrorKind::Other,
-            format!("Could not decode arduino event {}", event),
+            format!("Could not decode arduino event '{}'", event),
         )),
     }
 }

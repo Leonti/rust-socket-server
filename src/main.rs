@@ -295,7 +295,10 @@ fn process_ws(
 }
 
 pub fn main() {
-    let i2c_output = process::Command::new("i2cdetect").arg("-y").arg("1").output();
+    let i2c_output = process::Command::new("i2cdetect")
+        .arg("-y")
+        .arg("1")
+        .output();
     match i2c_output {
         Ok(output) => {
             println!("{}", str::from_utf8(&output.stdout).unwrap());
@@ -364,7 +367,7 @@ pub fn main() {
     let receive_sensor_messages = sensors_rx
         .for_each(move |event| {
             let event_json = serde_json::to_string(&event).unwrap();
-//            println!("Received sensor message, broadcasting: {:?}", &event_json);
+            //            println!("Received sensor message, broadcasting: {:?}", &event_json);
 
             match event {
                 Event::Encoder { event: e } => {

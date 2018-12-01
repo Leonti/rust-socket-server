@@ -7,7 +7,7 @@ use tokio::timer::Interval;
 
 use command::MotorCommand;
 use event::{EncoderEvent, Wheel};
-use motor::Motor;
+use motor::{Dir, Motor, Side};
 use std::sync::{Arc, Mutex};
 
 type RxCommand = mpsc::UnboundedReceiver<MotorCommand>;
@@ -85,17 +85,25 @@ impl MotorHandler {
         let command_handler = self
             .rx_command
             .for_each(move |command| {
-                println!("Received motor command");
                 let mut motor_option = motor_command_arc.lock().unwrap();
                 let mut state = state_command_arc.lock().unwrap();
                 match command {
                     MotorCommand::Move { speed, ticks } => {
-                        motor_option.as_mut().map(|motor| motor.set_speed(speed));
+                        println!("Received motor Move command ");
+
+                        motor_option.as_mut().map(|motor| {
+                            motor.set_direction(Side::Left, Dir::Forward);
+                            motor.set_direction(Side::Right, Dir::Forward);
+                            motor.set_speed(Side::Left, speed);
+                            motor.set_speed(Side::Right, speed);
+                        });
+
                         state.new_command(ticks, speed);
                         ()
                     }
                     MotorCommand::Stop => {
-                        motor_option.as_mut().map(|motor| motor.set_speed(0));
+                        println!("Received motor stop command ");
+                        motor_option.as_mut().map(|motor| motor.stop());
                         ()
                     }
                 };
@@ -130,7 +138,7 @@ impl MotorHandler {
                     || state.right_ticks >= state.ticks_to_move
                 {
                     let mut motor_option = motor_pid_arc.lock().unwrap();
-                    motor_option.as_mut().map(|motor| motor.set_speed(0));
+                    motor_option.as_mut().map(|motor| motor.stop());
                 }
 
                 Ok(())

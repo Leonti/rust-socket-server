@@ -21,8 +21,7 @@ fn port_listen(pin_number: u64, wheel: Wheel, tx: Arc<Mutex<Tx>>) -> sysfs_gpio:
         let mut poller = input.get_poller()?;
         loop {
             match poller.poll(1000)? {
-                Some(val) => {
-                    println!("Pin {} changed value to {}", pin_number, val);
+                Some(_val) => {
                     let encoder_event = EncoderEvent {
                         wheel: wheel.clone(),
                     };
