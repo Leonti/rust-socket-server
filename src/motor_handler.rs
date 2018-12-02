@@ -26,6 +26,8 @@ struct MotorState {
     p: f32,
     i: f32,
     d: f32,
+    error_sum: f32,
+    last_error: f32,    
     speed: u8,
     left_ticks: u32,
     right_ticks: u32,
@@ -46,6 +48,8 @@ impl MotorState {
             p: 0.0,
             i: 0.0,
             d: 0.0,
+            error_sum: 0.0,
+            last_error: 0.0,
             speed: 0,
             left_speed: 0.0,
             left_ticks: 0,
@@ -53,11 +57,23 @@ impl MotorState {
         }
     }
 
+    pub fn update_left_speed(&mut self) {
+        let error = (self.right_ticks - self.left_ticks) as f32;
+        self.error_sum += error;
+        let error_delta = error - self.last_error;
+        self.last_error = error;
+
+        let adjustement = self.p * error + self.i * self.error_sum + self.d * error_delta;
+        self.left_speed = self.left_speed + adjustement;
+    }
+
     pub fn new_command(&mut self, ticks_to_move: u32, speed: u8, p: f32, i: f32, d: f32) {
         self.ticks_to_move = ticks_to_move;
         self.p = p;
-        self.i = i;
-        self.d = d;
+        self.i = i * SAMPLE_TIME_MS as f32;
+        self.d = d / SAMPLE_TIME_MS as f32;
+        self.error_sum = 0.0;
+        self.last_error = 0.0;
         self.speed = speed;
     }
 
@@ -121,8 +137,8 @@ impl MotorHandler {
                         motor_option.as_mut().map(|motor| {
                             motor.set_direction(Side::Left, Dir::Forward);
                             motor.set_direction(Side::Right, Dir::Forward);
-                            motor.set_speed(Side::Left, speed);
-                            motor.set_speed(Side::Right, speed);
+                            motor.set_speed(Side::Left, speed as f32);
+                            motor.set_speed(Side::Right, speed as f32);
                         });
 
                         state.new_command(ticks, speed, p, i, d);
@@ -168,10 +184,13 @@ impl MotorHandler {
                 {
                     let mut motor_option = motor_pid_arc.lock().unwrap();
                     motor_option.as_mut().map(|motor| motor.stop());
+                    return Ok(());
                 }
 
-                // maybe not needed at all
-                state.left_speed = 0.0;
+                state.update_left_speed();
+
+                let mut motor_option = motor_pid_arc.lock().unwrap();
+                motor_option.as_mut().map(|motor| motor.set_speed(Side::Left, state.left_speed));
 
                 state.reset_loop();
                 Ok(())

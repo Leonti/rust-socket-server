@@ -81,10 +81,10 @@ impl Motor {
         }
     }
 
-    pub fn set_speed(&mut self, side: Side, speed: u8) -> () {
+    pub fn set_speed(&mut self, side: Side, speed: f32) -> () {
         println!("Setting speed to {}", speed);
 
-        let scaled_speed: f32 = (speed as f32) / 100f32 * 82f32 + 18f32;
+        let scaled_speed: f32 = speed / 100f32 * 82f32 + 18f32;
         let duty_cycle = 4095f32;
         let on = (duty_cycle * scaled_speed / 100f32).round();
 
