@@ -9,7 +9,13 @@ pub enum ArduinoCommand {
 #[derive(Deserialize)]
 pub enum MotorCommand {
     #[serde(rename = "move")]
-    Move { speed: u8, ticks: u32 },
+    Move {
+        speed: u8,
+        ticks: u32,
+        p: f32,
+        i: f32,
+        d: f32,
+    },
     #[serde(rename = "stop")]
     Stop,
 }
