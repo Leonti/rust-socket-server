@@ -27,7 +27,7 @@ struct MotorState {
     i: f32,
     d: f32,
     error_sum: f32,
-    last_error: f32,    
+    last_left_ticks: u32,    
     speed: u8,
     left_ticks: u32,
     right_ticks: u32,
@@ -49,7 +49,7 @@ impl MotorState {
             i: 0.0,
             d: 0.0,
             error_sum: 0.0,
-            last_error: 0.0,
+            last_left_ticks: 0,
             speed: 0,
             left_speed: 0.0,
             left_ticks: 0,
@@ -60,10 +60,10 @@ impl MotorState {
     pub fn update_left_speed(&mut self) {
         let error = (self.right_ticks - self.left_ticks) as f32;
         self.error_sum += error;
-        let error_delta = error - self.last_error;
-        self.last_error = error;
+        let input_delta = self.left_ticks - self.last_left_ticks;
+        self.last_left_ticks = self.left_ticks;
 
-        let adjustement = self.p * error + self.i * self.error_sum + self.d * error_delta;
+        let adjustement = self.p * error + self.i * self.error_sum + self.d * input_delta as f32;
         self.left_speed = self.left_speed + adjustement;
     }
 
