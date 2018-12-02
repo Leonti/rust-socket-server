@@ -26,7 +26,7 @@ struct MotorState {
     p: f32,
     i: f32,
     d: f32,
-    error_sum: f32,
+    i_term: f32,
     last_left_ticks: u32,    
     speed: u8,
     left_ticks: u32,
@@ -48,7 +48,7 @@ impl MotorState {
             p: 0.0,
             i: 0.0,
             d: 0.0,
-            error_sum: 0.0,
+            i_term: 0.0,
             last_left_ticks: 0,
             speed: 0,
             left_speed: 0.0,
@@ -57,13 +57,14 @@ impl MotorState {
         }
     }
 
+    // http://brettbeauregard.com/blog/2011/04/improving-the-beginner%e2%80%99s-pid-reset-windup/
     pub fn update_left_speed(&mut self) {
         let error = (self.right_ticks - self.left_ticks) as f32;
-        self.error_sum += error;
+        self.i_term += self.i * error;
         let input_delta = self.left_ticks - self.last_left_ticks;
         self.last_left_ticks = self.left_ticks;
 
-        let adjustement = self.p * error + self.i * self.error_sum + self.d * input_delta as f32;
+        let adjustement = self.p * error + self.i_term - self.d * input_delta as f32;
         self.left_speed = self.left_speed + adjustement;
     }
 
@@ -72,8 +73,8 @@ impl MotorState {
         self.p = p;
         self.i = i * SAMPLE_TIME_MS as f32;
         self.d = d / SAMPLE_TIME_MS as f32;
-        self.error_sum = 0.0;
-        self.last_error = 0.0;
+        self.i_term = 0.0;
+        self.last_left_ticks = 0;
         self.speed = speed;
     }
 
