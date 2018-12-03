@@ -12,6 +12,7 @@ pub struct Motor {
     in4_pin: Pin,
 }
 
+#[derive(Debug)]
 pub enum Side {
     Left,
     Right,
@@ -82,16 +83,19 @@ impl Motor {
     }
 
     pub fn set_speed(&mut self, side: Side, speed: f32) -> () {
-        println!("Setting speed to {}", speed);
+        println!("Setting speed to {} on side {:?}", speed, side);
 
-        let scaled_speed: f32 = speed / 100f32 * 82f32 + 18f32;
-        let duty_cycle = 4095f32;
-        let on = (duty_cycle * scaled_speed / 100f32).round();
+        let on = ((speed / 100.0 * 82.0 + 18.0) / 100.0 * 255.0).round() as u8;
+    //    let duty_cycle = 4095f32;
+     //   let on = (duty_cycle * scaled_speed / 100f32).round();
 
         let pwm_pin = match side {
             Side::Left => 0,
             Side::Right => 1,
         };
+
+     //   let on = 100;
+
         println!("Setting pwm to {}", on);
         self.pca.set_pwm(pwm_pin, on as u8, 0).unwrap();
         ()

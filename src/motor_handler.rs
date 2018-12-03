@@ -24,16 +24,18 @@ const OUT_MIN: f32 = 0.0;
 const OUT_MAX: f32 = 100.0;
 
 struct MotorState {
-    ticks_to_move: u32,
+    is_moving: bool,
+    ticks_to_move: isize,
     p: f32,
     i: f32,
     d: f32,
     i_term: f32,
-    last_left_ticks: u32,    
+    last_left_ticks: isize,    
     speed: u8,
-    left_ticks: u32,
-    right_ticks: u32,
+    left_ticks: isize,
+    right_ticks: isize,
     left_speed: f32,
+    sum_ticks: isize,
 }
 
 pub struct MotorHandler {
@@ -46,6 +48,7 @@ pub struct MotorHandler {
 impl MotorState {
     pub fn new() -> MotorState {
         MotorState {
+            is_moving: false,
             ticks_to_move: 0,
             p: 0.0,
             i: 0.0,
@@ -56,6 +59,7 @@ impl MotorState {
             left_speed: 0.0,
             left_ticks: 0,
             right_ticks: 0,
+            sum_ticks: 0,
         }
     }
 
@@ -88,13 +92,15 @@ impl MotorState {
     }
 
     pub fn new_command(&mut self, ticks_to_move: u32, speed: u8, p: f32, i: f32, d: f32) {
-        self.ticks_to_move = ticks_to_move;
+        self.is_moving = true;
+        self.ticks_to_move = ticks_to_move as isize;
         self.p = p;
         self.i = i * SAMPLE_TIME_MS as f32;
         self.d = d / SAMPLE_TIME_MS as f32;
         self.i_term = 0.0;
         self.last_left_ticks = 0;
         self.speed = speed;
+        self.sum_ticks = 0;
     }
 
     pub fn reset_loop(&mut self) {
@@ -166,6 +172,7 @@ impl MotorHandler {
                     }
                     MotorCommand::Stop => {
                         println!("Received motor stop command ");
+                        state.is_moving = false;
                         motor_option.as_mut().map(|motor| motor.stop());
                         ()
                     }
@@ -183,7 +190,10 @@ impl MotorHandler {
                 let mut state = state_encoder_arc.lock().unwrap();
                 match encoder_event.wheel {
                     Wheel::Left => state.left_ticks += 1,
-                    Wheel::Right => state.right_ticks += 1,
+                    Wheel::Right => {
+                        state.right_ticks += 1;
+                        state.sum_ticks += 1
+                        },
                 };
 
                 Ok(())
@@ -196,15 +206,18 @@ impl MotorHandler {
         let pid_loop = Interval::new(Instant::now(), Duration::from_millis(SAMPLE_TIME_MS))
             .for_each(move |_| {
                 let mut state = state_pid_arc.lock().unwrap();
-                let _left_ticks = state.left_ticks;
-                let _right_ticks = state.right_ticks;
 
-                if state.left_ticks >= state.ticks_to_move
-                    || state.right_ticks >= state.ticks_to_move
-                {
+                if !state.is_moving {
+                    return Ok(())
+                }
+
+                if state.sum_ticks >= state.ticks_to_move {
                     let mut motor_option = motor_pid_arc.lock().unwrap();
                     motor_option.as_mut().map(|motor| motor.stop());
-                    return Ok(());
+
+                    println!("Finished moving");
+                    state.is_moving = false;
+                    return Ok(())
                 }
 
                 state.update_left_speed();
