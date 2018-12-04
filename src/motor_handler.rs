@@ -20,8 +20,6 @@ type TxEvent = mpsc::UnboundedSender<EncoderEvent>;
 // http://brettbeauregard.com/blog/2011/04/improving-the-beginner%e2%80%99s-pid-sample-time/
 
 const SAMPLE_TIME_MS: u64 = 100;
-const OUT_MIN: f32 = 0.0;
-const OUT_MAX: f32 = 100.0;
 
 struct MotorState {
     is_moving: bool,
@@ -68,10 +66,13 @@ impl MotorState {
         let error = (self.right_ticks - self.left_ticks) as f32;
         self.i_term += self.i * error;
 
-        if self.i_term > OUT_MAX {
-            self.i_term = OUT_MAX;
-        } else if self.i_term < OUT_MIN {
-            self.i_term = OUT_MIN;
+        let out_min = - (self.speed as f32);
+        let out_max = 100.0 - self.speed as f32;
+
+        if self.i_term > out_max {
+            self.i_term = out_max;
+        } else if self.i_term < out_min {
+            self.i_term = out_min;
         }
 
         let input_delta = self.left_ticks - self.last_left_ticks;
@@ -79,16 +80,16 @@ impl MotorState {
 
         let mut output = self.p * error + self.i_term - self.d * input_delta as f32;
 
-        if output > OUT_MAX {
-            output = OUT_MAX;
-        } else if output < OUT_MIN {
-            output = OUT_MIN;
+        if output > out_max {
+            output = out_max;
+        } else if output < out_min {
+            output = out_min;
         } 
 
         println!("speed {}, p_term: {}, i_term: {}, d_term: {}, error: {}, left_ticks: {}, right_ticks: {}",
             output, self.p * error, self.i_term, self.d * input_delta as f32, error, self.left_ticks, self.right_ticks);
 
-        self.left_speed = output;
+        self.left_speed = self.speed as f32 + output;
     }
 
     pub fn new_command(&mut self, ticks_to_move: u32, speed: u8, p: f32, i: f32, d: f32) {
