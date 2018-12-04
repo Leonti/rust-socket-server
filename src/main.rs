@@ -21,7 +21,7 @@ extern crate serde_json;
 
 #[macro_use]
 extern crate serde_derive;
-extern crate pca9685;
+extern crate i2c_pca9685;
 extern crate i2cdev;
 
 use bytes::{BufMut, Bytes, BytesMut};
