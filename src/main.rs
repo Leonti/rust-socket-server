@@ -21,8 +21,9 @@ extern crate serde_json;
 
 #[macro_use]
 extern crate serde_derive;
-extern crate i2c_pca9685;
 extern crate i2cdev;
+
+mod pca9685;
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures::sync::mpsc;
