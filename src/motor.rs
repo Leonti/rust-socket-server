@@ -1,4 +1,4 @@
-use pca9685::PCA9685;
+use crate::pca9685::PCA9685;
 use i2cdev::linux::*;
 use sysfs_gpio::{Direction, Pin};
 

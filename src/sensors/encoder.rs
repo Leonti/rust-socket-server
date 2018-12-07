@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use sysfs_gpio::{Direction, Edge, Pin};
 
-use event::{EncoderEvent, Event, Wheel};
+use crate::event::{EncoderEvent, Event, Wheel};
 
 type Tx = mpsc::UnboundedSender<Event>;
 

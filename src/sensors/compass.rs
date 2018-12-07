@@ -1,7 +1,7 @@
 use futures::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
-use event::Event;
+use crate::event::Event;
 use std::time::{Duration, Instant};
 use tokio::prelude::*;
 use tokio::timer::Interval;

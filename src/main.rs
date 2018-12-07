@@ -44,14 +44,14 @@ type Tx = mpsc::UnboundedSender<Bytes>;
 type Rx = mpsc::UnboundedReceiver<Bytes>;
 
 mod sensors;
-use sensors::event::Event;
-use sensors::*;
+use crate::sensors::event::Event;
+use crate::sensors::*;
 mod command;
-use command::Command;
+use crate::command::Command;
 
 mod motor;
 mod motor_handler;
-use motor_handler::MotorHandler;
+use crate::motor_handler::MotorHandler;
 
 type EventTx = mpsc::UnboundedSender<Event>;
 type EventRx = mpsc::UnboundedReceiver<Event>;

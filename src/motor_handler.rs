@@ -5,9 +5,9 @@ use tokio::prelude::*;
 use std::time::{Duration, Instant};
 use tokio::timer::Interval;
 
-use command::MotorCommand;
-use event::{EncoderEvent, Wheel};
-use motor::{Dir, Motor, Side};
+use crate::command::MotorCommand;
+use crate::event::{EncoderEvent, Wheel};
+use crate::motor::{Dir, Motor, Side};
 use std::sync::{Arc, Mutex};
 
 type RxCommand = mpsc::UnboundedReceiver<MotorCommand>;

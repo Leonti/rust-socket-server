@@ -9,11 +9,11 @@ use tokio_io::codec::{Decoder, Encoder};
 
 use futures::{future, Future, Stream};
 
-use event::{ArduinoEvent, Event};
+use crate::event::{ArduinoEvent, Event};
 
 type Tx = mpsc::UnboundedSender<Event>;
 
-use command::ArduinoCommand;
+use crate::command::ArduinoCommand;
 
 type CommandTx = mpsc::UnboundedSender<ArduinoCommand>;
 type CommandRx = mpsc::UnboundedReceiver<ArduinoCommand>;
