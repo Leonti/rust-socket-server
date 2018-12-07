@@ -3,25 +3,11 @@
 
 #![deny(warnings)]
 
-extern crate tokio;
-#[macro_use]
-extern crate futures;
-extern crate bytes;
-extern crate sysfs_gpio;
-extern crate tokio_codec;
-extern crate tokio_io;
-extern crate tokio_serial;
-
-//extern crate tungstenite;
-extern crate tokio_tungstenite;
+use futures::try_ready;
 use std::io::{Error, ErrorKind};
-
-extern crate serde;
-extern crate serde_json;
 
 #[macro_use]
 extern crate serde_derive;
-extern crate i2cdev;
 
 mod pca9685;
 
