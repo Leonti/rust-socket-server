@@ -138,7 +138,8 @@ impl Arduino {
                     Err(e) => println!("serial send error = {:?}", e),
                 };
                 Ok(())
-            }).map_err(|err| {
+            })
+            .map_err(|err| {
                 println!("command reading error = {:?}", err);
             });
 
@@ -159,7 +160,8 @@ impl Arduino {
                 }
 
                 Ok(())
-            }).map_err(|e| println!("{}", e));
+            })
+            .map_err(|e| println!("{}", e));
 
         Box::new(command_handler.join(messages).map(|_| ()))
     }

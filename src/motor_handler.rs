@@ -5,7 +5,7 @@ use tokio::prelude::*;
 use std::time::{Duration, Instant};
 use tokio::timer::Interval;
 
-use crate::command::MotorCommand;
+use crate::command::{Direction, MotorCommand};
 use crate::event::{EncoderEvent, Wheel};
 use crate::motor::{Dir, Motor, Side};
 use std::sync::{Arc, Mutex};
@@ -22,13 +22,14 @@ type TxEvent = mpsc::UnboundedSender<EncoderEvent>;
 const SAMPLE_TIME_MS: u64 = 100;
 
 struct MotorState {
+    direction: Direction,
     is_moving: bool,
     ticks_to_move: isize,
     p: f32,
     i: f32,
     d: f32,
     i_term: f32,
-    last_left_ticks: isize,    
+    last_left_ticks: isize,
     speed: u8,
     left_ticks: isize,
     right_ticks: isize,
@@ -46,6 +47,7 @@ pub struct MotorHandler {
 impl MotorState {
     pub fn new() -> MotorState {
         MotorState {
+            direction: Direction::Forward,
             is_moving: false,
             ticks_to_move: 0,
             p: 0.0,
@@ -66,7 +68,7 @@ impl MotorState {
         let error = (self.right_ticks - self.left_ticks) as f32;
         self.i_term += self.i * error;
 
-        let out_min = - (self.speed as f32);
+        let out_min = -(self.speed as f32);
         let out_max = 100.0 - self.speed as f32;
 
         if self.i_term > out_max {
@@ -84,7 +86,7 @@ impl MotorState {
             output = out_max;
         } else if output < out_min {
             output = out_min;
-        } 
+        }
 
         println!("speed {}, p_term: {}, i_term: {}, d_term: {}, error: {}, left_ticks: {}, right_ticks: {}",
             output, self.p * error, self.i_term, self.d * input_delta as f32, error, self.left_ticks, self.right_ticks);
@@ -92,9 +94,18 @@ impl MotorState {
         self.left_speed = self.speed as f32 + output;
     }
 
-    pub fn new_command(&mut self, ticks_to_move: u32, speed: u8, p: f32, i: f32, d: f32) {
+    pub fn new_command(
+        &mut self,
+        direction: Direction,
+        speed: u8,
+        ticks_to_move: u32,
+        p: f32,
+        i: f32,
+        d: f32,
+    ) {
         self.is_moving = true;
         self.ticks_to_move = ticks_to_move as isize;
+        self.direction = direction;
         self.p = p;
         self.i = i * SAMPLE_TIME_MS as f32;
         self.d = d / SAMPLE_TIME_MS as f32;
@@ -154,6 +165,7 @@ impl MotorHandler {
                 match command {
                     MotorCommand::Move {
                         speed,
+                        direction,
                         ticks,
                         p,
                         i,
@@ -168,7 +180,7 @@ impl MotorHandler {
                             motor.set_speed(Side::Right, speed as f32);
                         });
 
-                        state.new_command(ticks, speed, p, i, d);
+                        state.new_command(direction, speed, ticks, p, i, d);
                         ()
                     }
                     MotorCommand::Stop => {
@@ -180,7 +192,8 @@ impl MotorHandler {
                 };
 
                 Ok(())
-            }).map_err(|err| {
+            })
+            .map_err(|err| {
                 println!("command reading error = {:?}", err);
             });
 
@@ -194,11 +207,12 @@ impl MotorHandler {
                     Wheel::Right => {
                         state.right_ticks += 1;
                         state.sum_ticks += 1
-                        },
+                    }
                 };
 
                 Ok(())
-            }).map_err(|err| {
+            })
+            .map_err(|err| {
                 println!("envoder event error = {:?}", err);
             });
 
@@ -209,7 +223,7 @@ impl MotorHandler {
                 let mut state = state_pid_arc.lock().unwrap();
 
                 if !state.is_moving {
-                    return Ok(())
+                    return Ok(());
                 }
 
                 if state.sum_ticks >= state.ticks_to_move {
@@ -218,17 +232,20 @@ impl MotorHandler {
 
                     println!("Finished moving");
                     state.is_moving = false;
-                    return Ok(())
+                    return Ok(());
                 }
 
                 state.update_left_speed();
 
                 let mut motor_option = motor_pid_arc.lock().unwrap();
-                motor_option.as_mut().map(|motor| motor.set_speed(Side::Left, state.left_speed));
+                motor_option
+                    .as_mut()
+                    .map(|motor| motor.set_speed(Side::Left, state.left_speed));
 
                 state.reset_loop();
                 Ok(())
-            }).map_err(|e| print!("interval errored; err={:?}", e));
+            })
+            .map_err(|e| print!("interval errored; err={:?}", e));
 
         command_handler
             .join(encoder_handler)

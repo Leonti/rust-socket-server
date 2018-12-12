@@ -1,29 +1,36 @@
 #![allow(unused)]
 
 #[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ArduinoCommand {
-    #[serde(rename = "off")]
     Off,
 }
 
 #[derive(Deserialize)]
+pub enum Direction {
+    Forward,
+    Backward,
+    Right,
+    Left,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum MotorCommand {
-    #[serde(rename = "move")]
     Move {
         speed: u8,
+        direction: Direction,
         ticks: u32,
         p: f32,
         i: f32,
         d: f32,
     },
-    #[serde(rename = "stop")]
     Stop,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Command {
-    #[serde(rename = "motor")]
     Motor { command: MotorCommand },
-    #[serde(rename = "arduino")]
     Arduino { command: ArduinoCommand },
 }

@@ -276,7 +276,8 @@ fn process_ws(
             }));
 
             Ok(())
-        }).map_err(|e| Error::new(ErrorKind::Other, e));
+        })
+        .map_err(|e| Error::new(ErrorKind::Other, e));
 
     Box::new(future)
 }
@@ -319,7 +320,8 @@ pub fn main() {
         .for_each(move |socket| {
             process(socket, local_state.clone());
             Ok(())
-        }).map_err(|err| {
+        })
+        .map_err(|err| {
             println!("ws accept error = {:?}", err);
         });
 
@@ -346,7 +348,8 @@ pub fn main() {
             };
 
             Ok(())
-        }).map_err(|err| {
+        })
+        .map_err(|err| {
             println!("line reading error = {:?}", err);
         });
 
@@ -378,11 +381,13 @@ pub fn main() {
                 ws_tx
                     .unbounded_send(Message::Text(
                         str::from_utf8(&line).unwrap().trim().to_string(),
-                    )).unwrap();
+                    ))
+                    .unwrap();
             }
 
             Ok(())
-        }).map_err(|err| {
+        })
+        .map_err(|err| {
             println!("line reading error = {:?}", err);
         });
 
