@@ -7,6 +7,7 @@ pub enum ArduinoCommand {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Direction {
     Forward,
     Backward,
