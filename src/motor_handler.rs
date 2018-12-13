@@ -174,8 +174,24 @@ impl MotorHandler {
                         println!("Received motor Move command ");
 
                         motor_option.as_mut().map(|motor| {
-                            motor.set_direction(Side::Left, Dir::Forward);
-                            motor.set_direction(Side::Right, Dir::Forward);
+                            match direction {
+                                Direction::Forward => {
+                                    motor.set_direction(Side::Left, Dir::Forward);
+                                    motor.set_direction(Side::Right, Dir::Forward);
+                                }
+                                Direction::Backward => {
+                                    motor.set_direction(Side::Left, Dir::Backward);
+                                    motor.set_direction(Side::Right, Dir::Backward);
+                                }
+                                Direction::Right => {
+                                    motor.set_direction(Side::Left, Dir::Backward);
+                                    motor.set_direction(Side::Right, Dir::Forward);
+                                }
+                                Direction::Left => {
+                                    motor.set_direction(Side::Left, Dir::Forward);
+                                    motor.set_direction(Side::Right, Dir::Backward);
+                                }
+                            };
                             motor.set_speed(Side::Left, speed as f32);
                             motor.set_speed(Side::Right, speed as f32);
                         });
