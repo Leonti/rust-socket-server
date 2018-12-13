@@ -29,7 +29,7 @@ struct MotorState {
     i: f32,
     d: f32,
     i_term: f32,
-    last_left_ticks: isize,
+    last_left_ticks: Option<isize>,
     speed: u8,
     left_ticks: isize,
     right_ticks: isize,
@@ -54,7 +54,7 @@ impl MotorState {
             i: 0.0,
             d: 0.0,
             i_term: 0.0,
-            last_left_ticks: 0,
+            last_left_ticks: None,
             speed: 0,
             left_speed: 0.0,
             left_ticks: 0,
@@ -77,8 +77,10 @@ impl MotorState {
             self.i_term = out_min;
         }
 
-        let input_delta = self.left_ticks - self.last_left_ticks;
-        self.last_left_ticks = self.left_ticks;
+        let input_delta = self
+            .last_left_ticks
+            .map_or(0, |last| self.left_ticks - last);
+        self.last_left_ticks = Some(self.left_ticks);
 
         let mut output = self.p * error + self.i_term - self.d * input_delta as f32;
 
@@ -110,7 +112,7 @@ impl MotorState {
         self.i = i * SAMPLE_TIME_MS as f32;
         self.d = d / SAMPLE_TIME_MS as f32;
         self.i_term = 0.0;
-        self.last_left_ticks = 0;
+        self.last_left_ticks = None;
         self.speed = speed;
         self.sum_ticks = 0;
     }
