@@ -186,12 +186,12 @@ impl MotorHandler {
                                     motor.set_direction(Side::Right, Dir::Backward);
                                 }
                                 Direction::Right => {
-                                    motor.set_direction(Side::Left, Dir::Backward);
-                                    motor.set_direction(Side::Right, Dir::Forward);
-                                }
-                                Direction::Left => {
                                     motor.set_direction(Side::Left, Dir::Forward);
                                     motor.set_direction(Side::Right, Dir::Backward);
+                                }
+                                Direction::Left => {
+                                    motor.set_direction(Side::Left, Dir::Backward);
+                                    motor.set_direction(Side::Right, Dir::Forward);
                                 }
                             };
                             motor.set_speed(Side::Left, speed as f32);
