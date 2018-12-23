@@ -19,7 +19,7 @@ type TxEvent = mpsc::UnboundedSender<EncoderEvent>;
 // http://www.robotc.net/wikiarchive/Tutorials/Arduino_Projects/Mobile_Robotics/VEX/Using_encoders_to_drive_straight
 // http://brettbeauregard.com/blog/2011/04/improving-the-beginner%e2%80%99s-pid-sample-time/
 
-const SAMPLE_TIME_MS: u64 = 100;
+const SAMPLE_TIME_MS: u64 = 50;
 
 struct MotorState {
     direction: Direction,
