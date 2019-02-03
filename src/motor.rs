@@ -85,9 +85,8 @@ impl Motor {
         println!("Setting speed to {} on side {:?}", speed, side);
 
         // const scaled = speed/100 * 82 + 18
-        let scaled_speed = speed / 100.0 * 82.0 + 18.0;
         let duty_cycle = 4095f32;
-        let on = (duty_cycle * scaled_speed / 100f32).round();
+        let on = (duty_cycle * speed / 100f32).round();
 
         let pwm_pin = match side {
             Side::Left => 0,

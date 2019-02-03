@@ -329,7 +329,7 @@ pub fn main() {
 
     let sensors_tx_arc = Arc::new(Mutex::new(sensors_tx));
 
-    let (motor_handler, motor_handler_tx_command, motor_handler_tx_event) = MotorHandler::new();
+    let (motor_handler, motor_handler_tx_command, motor_handler_tx_event) = MotorHandler::new(sensors_tx_arc.clone());
     let (arduino, arduino_tx) = arduino::Arduino::new(sensors_tx_arc.clone());
     let receive_messages = server_rx
         .for_each(move |line| {

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 cargo build --target=armv7-unknown-linux-musleabihf --release
 
