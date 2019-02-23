@@ -9,7 +9,7 @@ use tokio_io::codec::{Decoder, Encoder};
 
 use futures::{future, Future, Stream};
 
-use crate::event::{ArduinoEvent, Event};
+use crate::event::{ArduinoEvent, EncodersSnapshot, Event};
 
 type Tx = mpsc::UnboundedSender<Event>;
 
@@ -61,6 +61,24 @@ fn parse_float(n: &str) -> Result<f32, io::Error> {
     })
 }
 
+fn parse_u8(n: &str) -> Result<u8, io::Error> {
+    n.parse().map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Could not parse number '{}', {}", n, e),
+        )
+    })
+}
+
+fn parse_isize(n: &str) -> Result<isize, io::Error> {
+    n.parse().map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Could not parse number '{}', {}", n, e),
+        )
+    })
+}
+
 fn parse_temp(temp: &str) -> Result<ArduinoEvent, io::Error> {
     match temp.split(",").collect::<Vec<&str>>().as_slice() {
         [room, battery] => Ok(ArduinoEvent::Temp {
@@ -87,11 +105,28 @@ fn parse_battery(battery: &str) -> Result<ArduinoEvent, io::Error> {
     }
 }
 
+fn parse_encoders(encoders: &str) -> Result<ArduinoEvent, io::Error> {
+    match encoders.split(",").collect::<Vec<&str>>().as_slice() {
+        [left, right, duration] => Ok(ArduinoEvent::Encoders {
+            encoders: EncodersSnapshot {
+                left: parse_u8(left)?,
+                right: parse_u8(right)?,
+                duration: parse_isize(duration)?
+            }
+        }),
+        _ => Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("Could not decode encoders event {}", encoders),
+        )),
+    }
+}
+
 fn decode_event(bytes: Bytes) -> Result<ArduinoEvent, io::Error> {
     let event = str::from_utf8(&bytes).unwrap().trim();
     match event.split(":").collect::<Vec<&str>>().as_slice() {
         ["B", battery] => parse_battery(battery),
         ["T", temp] => parse_temp(temp),
+        ["E", encoders] => parse_encoders(encoders),
         _ => Err(io::Error::new(
             io::ErrorKind::Other,
             format!("Could not decode arduino event '{}'", event),

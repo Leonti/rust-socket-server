@@ -9,9 +9,18 @@ pub enum Wheel {
 
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
+pub struct EncodersSnapshot {
+    pub left: u8,
+    pub right: u8,
+    pub duration: isize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ArduinoEvent {
     Power { load_voltage: f32, current_ma: f32 },
     Temp { room: f32, battery: f32 },
+    Encoders { encoders: EncodersSnapshot },
 }
 
 #[derive(Serialize)]
@@ -31,6 +40,7 @@ pub struct MotorRunStat {
     pub p_term: f32,
     pub i_term: f32,
     pub d_term: f32,
+    pub duration: isize,
 }
 
 #[derive(Serialize)]

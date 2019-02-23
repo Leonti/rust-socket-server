@@ -30,7 +30,7 @@ type Tx = mpsc::UnboundedSender<Bytes>;
 type Rx = mpsc::UnboundedReceiver<Bytes>;
 
 mod sensors;
-use crate::sensors::event::Event;
+use crate::sensors::event::{Event, ArduinoEvent};
 use crate::sensors::*;
 mod command;
 use crate::command::Command;
@@ -360,9 +360,14 @@ pub fn main() {
             //            println!("Received sensor message, broadcasting: {:?}", &event_json);
 
             match event {
-                Event::Encoder { event: e } => {
-                    motor_handler_tx_event.unbounded_send(e).unwrap();
-                    ()
+                Event::Arduino { event: e } => {
+                    match e {
+                        ArduinoEvent::Encoders { encoders } => {
+                            motor_handler_tx_event.unbounded_send(encoders).unwrap();
+                            ()
+                        },
+                        _ => ()
+                    }
                 }
                 _ => (),
             };

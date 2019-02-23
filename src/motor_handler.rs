@@ -4,9 +4,10 @@ use tokio::prelude::*;
 
 use std::time::{Duration, Instant};
 use tokio::timer::Interval;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::command::{Direction, MotorCommand};
-use crate::event::{EncoderEvent, Wheel, Event, MotorRunStat};
+use crate::event::{EncodersSnapshot, Event, MotorRunStat};
 use crate::motor::{Dir, Motor, Side};
 use std::sync::{Arc, Mutex};
 
@@ -15,13 +16,13 @@ type Tx = mpsc::UnboundedSender<Event>;
 type RxCommand = mpsc::UnboundedReceiver<MotorCommand>;
 type TxCommand = mpsc::UnboundedSender<MotorCommand>;
 
-type RxEvent = mpsc::UnboundedReceiver<EncoderEvent>;
-type TxEvent = mpsc::UnboundedSender<EncoderEvent>;
+type RxEvent = mpsc::UnboundedReceiver<EncodersSnapshot>;
+type TxEvent = mpsc::UnboundedSender<EncodersSnapshot>;
 
 // http://www.robotc.net/wikiarchive/Tutorials/Arduino_Projects/Mobile_Robotics/VEX/Using_encoders_to_drive_straight
 // http://brettbeauregard.com/blog/2011/04/improving-the-beginner%e2%80%99s-pid-sample-time/
 
-const SAMPLE_TIME_MS: u64 = 100;
+const HEARTBEAT_MS: u64 = 1000;
 
 struct WheelState {
     i_term: f32,
@@ -39,8 +40,8 @@ impl WheelState {
             speed: speed,            
         }
     }
-    pub fn tick(&mut self) {
-        self.current_ticks += 1;
+    pub fn set_ticks(&mut self, ticks: isize) {
+        self.current_ticks = ticks;
     }
 }
 
@@ -56,8 +57,8 @@ impl BaseWheelState {
             speed: speed,            
         }
     }
-    pub fn tick(&mut self) {
-        self.current_ticks += 1;
+    pub fn set_ticks(&mut self, ticks: isize) {
+        self.current_ticks = ticks;
     }
 }
 
@@ -70,6 +71,7 @@ struct Pid {
 struct MotorState {
     direction: Direction,
     is_moving: bool,
+    heartbeat_touch: u128,
     ticks_to_move: isize,
     ticks_moved: isize,
     pid: Pid,
@@ -88,7 +90,7 @@ pub struct MotorHandler {
 }
 
 // http://brettbeauregard.com/blog/2011/04/improving-the-beginner%e2%80%99s-pid-reset-windup/
-fn next_wheel_state(ws: &WheelState, base_wheel: &BaseWheelState, pid: &Pid) -> (WheelState, MotorRunStat) {
+fn next_wheel_state(ws: &WheelState, base_wheel: &BaseWheelState, pid: &Pid, duration: isize) -> (WheelState, MotorRunStat) {
     let error = (base_wheel.current_ticks - ws.current_ticks) as f32;
     let mut i_term = ws.i_term + pid.i * error;
 
@@ -113,8 +115,8 @@ fn next_wheel_state(ws: &WheelState, base_wheel: &BaseWheelState, pid: &Pid) -> 
         output = out_min;
     }
 
-    println!("speed {}, p_term: {}, i_term: {}, d_term: {}, error: {}, current_ticks: {}, base ticks: {}",
-        output, pid.p * error, i_term, pid.d * input_delta as f32, error, ws.current_ticks, base_wheel.current_ticks);
+//    println!("speed {}, p_term: {}, i_term: {}, d_term: {}, error: {}, current_ticks: {}, base ticks: {}",
+//        output, pid.p * error, i_term, pid.d * input_delta as f32, error, ws.current_ticks, base_wheel.current_ticks);
 
     let wheel_state = WheelState {
         i_term: i_term,
@@ -126,12 +128,13 @@ fn next_wheel_state(ws: &WheelState, base_wheel: &BaseWheelState, pid: &Pid) -> 
     let stat = MotorRunStat {
         speed_base: base_wheel.speed,
         speed_slave: wheel_state.speed,
-        ticks_base: base_wheel.current_ticks,
-        ticks_slave: ws.current_ticks,
+        ticks_base: base_wheel.current_ticks as isize,
+        ticks_slave: ws.current_ticks as isize,
         error: error,
         p_term: pid.p * error,
-        i_term: pid.d * input_delta as f32,
-        d_term: i_term,
+        i_term: i_term,
+        d_term: pid.d * input_delta as f32,
+        duration,
     };
 
     (wheel_state, stat)
@@ -142,6 +145,7 @@ impl MotorState {
         MotorState {
             direction: Direction::Forward,
             is_moving: false,
+            heartbeat_touch: 0,
             ticks_to_move: 0,
             ticks_moved: 0,
             pid: Pid {
@@ -155,12 +159,6 @@ impl MotorState {
             motor_stats: Vec::new()
         }
     }
-
-/* For dynamic sample time
-    self.p = p;
-    self.i = i * SAMPLE_TIME_MS as f32;
-    self.d = d / SAMPLE_TIME_MS as f32;
-*/
 
     pub fn new_command(
         &mut self,
@@ -184,7 +182,16 @@ impl MotorState {
         self.wheel_right = BaseWheelState::new(speed as f32);
         self.speed = speed;
         self.ticks_moved = 0;
+        self.heartbeat_touch = get_millis();
     }
+}
+
+fn get_millis() -> u128 {
+    let start = SystemTime::now();
+    let since_the_epoch = start.duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");;
+    since_the_epoch.as_secs() as u128 * 1000 + 
+            since_the_epoch.subsec_millis() as u128
 }
 
 impl MotorHandler {
@@ -282,34 +289,20 @@ impl MotorHandler {
             });
 
         let state_encoder_arc = self.state.clone();
+        let motor_pid_arc = self.motor.clone();
+//        let state_pid_arc = self.state.clone();
+        let tx = self.tx.clone();
         let encoder_handler = self
             .rx_event
-            .for_each(move |encoder_event| {
+            .for_each(move |encoders| {
                 let mut state = state_encoder_arc.lock().unwrap();
-                match encoder_event.wheel {
-                    Wheel::Left => state.wheel_left.tick(),
-                    Wheel::Right => {
-                        state.wheel_right.tick();
-                        state.ticks_moved += 1;
-                    },
-                };
-
-                Ok(())
-            })
-            .map_err(|err| {
-                println!("encoder event error = {:?}", err);
-            });
-
-        let motor_pid_arc = self.motor.clone();
-        let state_pid_arc = self.state.clone();
-        let tx = self.tx.clone();
-        let pid_loop = Interval::new(Instant::now(), Duration::from_millis(SAMPLE_TIME_MS))
-            .for_each(move |_| {
-                let mut state = state_pid_arc.lock().unwrap();
 
                 if !state.is_moving {
                     return Ok(());
                 }
+
+                state.heartbeat_touch = get_millis();
+                state.ticks_moved += encoders.left as isize;
 
                 if state.ticks_moved >= state.ticks_to_move {
                     let mut motor_option = motor_pid_arc.lock().unwrap();
@@ -331,10 +324,12 @@ impl MotorHandler {
                     return Ok(());
                 }
 
+                state.wheel_left.set_ticks(encoders.left as isize);
+                state.wheel_right.set_ticks(encoders.right as isize);
+                
                 println!("left ticks: {}, right ticks: {}", state.wheel_left.current_ticks, state.wheel_right.current_ticks);
 
-                println!("Left state:");
-                let (next_state, stat) = next_wheel_state(&state.wheel_left, &state.wheel_right, &state.pid);
+                let (next_state, stat) = next_wheel_state(&state.wheel_left, &state.wheel_right, &state.pid, encoders.duration);
                 state.wheel_left = next_state;
                 state.wheel_right.current_ticks = 0;
                 state.motor_stats.push(stat);
@@ -346,6 +341,30 @@ impl MotorHandler {
                         motor.set_speed(Side::Left, state.wheel_left.speed);
                         motor.set_speed(Side::Right, state.wheel_right.speed);
                     });
+
+                Ok(())
+            })
+            .map_err(|err| {
+                println!("encoder event error = {:?}", err);
+            });
+
+        let state_pid_arc = self.state.clone();
+        let motor_pid_arc = self.motor.clone();
+        let pid_loop = Interval::new(Instant::now(), Duration::from_millis(HEARTBEAT_MS))
+            .for_each(move |_| {
+                let mut state = state_pid_arc.lock().unwrap();
+
+                if !state.is_moving {
+                    return Ok(());
+                }
+
+                if get_millis() - state.heartbeat_touch > 2000 {
+                    let mut motor_option = motor_pid_arc.lock().unwrap();
+                    motor_option.as_mut().map(|motor| motor.stop());
+
+                    println!("Stopped moving because of heartbeat");
+                    state.is_moving = false;
+                }
 
                 Ok(())
             })
