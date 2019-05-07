@@ -30,7 +30,7 @@ type Tx = mpsc::UnboundedSender<Bytes>;
 type Rx = mpsc::UnboundedReceiver<Bytes>;
 
 mod sensors;
-use crate::sensors::event::{Event, ArduinoEvent};
+use crate::sensors::event::{ArduinoEvent, Event, TimedEvent};
 use crate::sensors::*;
 mod command;
 use crate::command::Command;
@@ -39,8 +39,8 @@ mod motor;
 mod motor_handler;
 use crate::motor_handler::MotorHandler;
 
-type EventTx = mpsc::UnboundedSender<Event>;
-type EventRx = mpsc::UnboundedReceiver<Event>;
+type EventTx = mpsc::UnboundedSender<TimedEvent>;
+type EventRx = mpsc::UnboundedReceiver<TimedEvent>;
 type CommandTx = mpsc::UnboundedSender<Command>;
 type CommandRx = mpsc::UnboundedReceiver<Command>;
 
@@ -329,7 +329,8 @@ pub fn main() {
 
     let sensors_tx_arc = Arc::new(Mutex::new(sensors_tx));
 
-    let (motor_handler, motor_handler_tx_command, motor_handler_tx_event) = MotorHandler::new(sensors_tx_arc.clone());
+    let (motor_handler, motor_handler_tx_command, motor_handler_tx_event) =
+        MotorHandler::new(sensors_tx_arc.clone());
     let (arduino, arduino_tx) = arduino::Arduino::new(sensors_tx_arc.clone());
     let receive_messages = server_rx
         .for_each(move |line| {
@@ -360,15 +361,16 @@ pub fn main() {
             //            println!("Received sensor message, broadcasting: {:?}", &event_json);
 
             match event {
-                Event::Arduino { event: e } => {
-                    match e {
-                        ArduinoEvent::Encoders { encoders } => {
-                            motor_handler_tx_event.unbounded_send(encoders).unwrap();
-                            ()
-                        },
-                        _ => ()
+                TimedEvent {
+                    event: Event::Arduino { event: e },
+                    time: _u128,
+                } => match e {
+                    ArduinoEvent::Encoders { encoders } => {
+                        motor_handler_tx_event.unbounded_send(encoders).unwrap();
+                        ()
                     }
-                }
+                    _ => (),
+                },
                 _ => (),
             };
 

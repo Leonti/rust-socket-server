@@ -3,15 +3,15 @@ use futures::sync::mpsc;
 use tokio::prelude::*;
 
 use std::time::{Duration, Instant};
-use tokio::timer::Interval;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::timer::Interval;
 
 use crate::command::{Direction, MotorCommand};
-use crate::event::{EncodersSnapshot, Event, MotorRunStat};
+use crate::event::{EncodersSnapshot, Event, MotorRunStat, TimedEvent};
 use crate::motor::{Dir, Motor, Side};
 use std::sync::{Arc, Mutex};
 
-type Tx = mpsc::UnboundedSender<Event>;
+type Tx = mpsc::UnboundedSender<TimedEvent>;
 
 type RxCommand = mpsc::UnboundedReceiver<MotorCommand>;
 type TxCommand = mpsc::UnboundedSender<MotorCommand>;
@@ -37,7 +37,7 @@ impl WheelState {
             i_term: 0.0,
             last_ticks: None,
             current_ticks: 0,
-            speed: speed,            
+            speed: speed,
         }
     }
     pub fn set_ticks(&mut self, ticks: isize) {
@@ -47,14 +47,14 @@ impl WheelState {
 
 struct BaseWheelState {
     current_ticks: isize,
-    speed: f32,    
+    speed: f32,
 }
 
 impl BaseWheelState {
     pub fn new(speed: f32) -> BaseWheelState {
         BaseWheelState {
             current_ticks: 0,
-            speed: speed,            
+            speed: speed,
         }
     }
     pub fn set_ticks(&mut self, ticks: isize) {
@@ -65,7 +65,7 @@ impl BaseWheelState {
 struct Pid {
     p: f32,
     i: f32,
-    d: f32,    
+    d: f32,
 }
 
 struct MotorState {
@@ -78,7 +78,7 @@ struct MotorState {
     wheel_left: WheelState,
     wheel_right: BaseWheelState,
     speed: u8,
-    motor_stats: Vec<MotorRunStat>
+    motor_stats: Vec<MotorRunStat>,
 }
 
 pub struct MotorHandler {
@@ -90,12 +90,17 @@ pub struct MotorHandler {
 }
 
 // http://brettbeauregard.com/blog/2011/04/improving-the-beginner%e2%80%99s-pid-reset-windup/
-fn next_wheel_state(ws: &WheelState, base_wheel: &BaseWheelState, pid: &Pid, duration: isize) -> (WheelState, MotorRunStat) {
+fn next_wheel_state(
+    ws: &WheelState,
+    base_wheel: &BaseWheelState,
+    pid: &Pid,
+    duration: isize,
+) -> (WheelState, MotorRunStat) {
     let error = (base_wheel.current_ticks - ws.current_ticks) as f32;
     let mut i_term = ws.i_term + pid.i * error;
 
     let out_min = -(base_wheel.speed as f32);
-    let out_max = 100.0 - base_wheel.speed as f32;  
+    let out_max = 100.0 - base_wheel.speed as f32;
 
     if i_term > out_max {
         i_term = out_max;
@@ -103,10 +108,8 @@ fn next_wheel_state(ws: &WheelState, base_wheel: &BaseWheelState, pid: &Pid, dur
         i_term = out_min;
     }
 
-    let input_delta = ws
-        .last_ticks
-        .map_or(0, |last| ws.current_ticks - last);
-    
+    let input_delta = ws.last_ticks.map_or(0, |last| ws.current_ticks - last);
+
     let mut output = pid.p * error + ws.i_term - pid.d * input_delta as f32;
 
     if output > out_max {
@@ -115,8 +118,8 @@ fn next_wheel_state(ws: &WheelState, base_wheel: &BaseWheelState, pid: &Pid, dur
         output = out_min;
     }
 
-//    println!("speed {}, p_term: {}, i_term: {}, d_term: {}, error: {}, current_ticks: {}, base ticks: {}",
-//        output, pid.p * error, i_term, pid.d * input_delta as f32, error, ws.current_ticks, base_wheel.current_ticks);
+    //    println!("speed {}, p_term: {}, i_term: {}, d_term: {}, error: {}, current_ticks: {}, base ticks: {}",
+    //        output, pid.p * error, i_term, pid.d * input_delta as f32, error, ws.current_ticks, base_wheel.current_ticks);
 
     let wheel_state = WheelState {
         i_term: i_term,
@@ -156,7 +159,7 @@ impl MotorState {
             speed: 0,
             wheel_left: WheelState::new(0.0),
             wheel_right: BaseWheelState::new(0.0),
-            motor_stats: Vec::new()
+            motor_stats: Vec::new(),
         }
     }
 
@@ -172,11 +175,7 @@ impl MotorState {
         self.is_moving = true;
         self.ticks_to_move = ticks_to_move as isize;
         self.direction = direction;
-        self.pid = Pid {
-            p: p,
-            i: i,
-            d: d,
-        };
+        self.pid = Pid { p: p, i: i, d: d };
 
         self.wheel_left = WheelState::new(speed as f32);
         self.wheel_right = BaseWheelState::new(speed as f32);
@@ -188,10 +187,10 @@ impl MotorState {
 
 fn get_millis() -> u128 {
     let start = SystemTime::now();
-    let since_the_epoch = start.duration_since(UNIX_EPOCH)
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
         .expect("Time went backwards");;
-    since_the_epoch.as_secs() as u128 * 1000 + 
-            since_the_epoch.subsec_millis() as u128
+    since_the_epoch.as_secs() as u128 * 1000 + since_the_epoch.subsec_millis() as u128
 }
 
 impl MotorHandler {
@@ -290,7 +289,7 @@ impl MotorHandler {
 
         let state_encoder_arc = self.state.clone();
         let motor_pid_arc = self.motor.clone();
-//        let state_pid_arc = self.state.clone();
+        //        let state_pid_arc = self.state.clone();
         let tx = self.tx.clone();
         let encoder_handler = self
             .rx_event
@@ -311,12 +310,12 @@ impl MotorHandler {
                     println!("Finished moving");
                     state.is_moving = false;
                     let tx = tx.lock().unwrap();
-                    match tx.unbounded_send(Event::MotorRunStats {
+                    match tx.unbounded_send(TimedEvent::new(Event::MotorRunStats {
                         stats: state.motor_stats.clone(),
                         p: state.pid.p,
                         i: state.pid.i,
                         d: state.pid.d,
-                    }) {
+                    })) {
                         Ok(_) => (),
                         Err(e) => println!("motor stats send error = {:?}", e),
                     };
@@ -326,21 +325,27 @@ impl MotorHandler {
 
                 state.wheel_left.set_ticks(encoders.left as isize);
                 state.wheel_right.set_ticks(encoders.right as isize);
-                
-                println!("left ticks: {}, right ticks: {}", state.wheel_left.current_ticks, state.wheel_right.current_ticks);
 
-                let (next_state, stat) = next_wheel_state(&state.wheel_left, &state.wheel_right, &state.pid, encoders.duration);
+                println!(
+                    "left ticks: {}, right ticks: {}",
+                    state.wheel_left.current_ticks, state.wheel_right.current_ticks
+                );
+
+                let (next_state, stat) = next_wheel_state(
+                    &state.wheel_left,
+                    &state.wheel_right,
+                    &state.pid,
+                    encoders.duration,
+                );
                 state.wheel_left = next_state;
                 state.wheel_right.current_ticks = 0;
                 state.motor_stats.push(stat);
 
                 let mut motor_option = motor_pid_arc.lock().unwrap();
-                motor_option
-                    .as_mut()
-                    .map(|motor| {
-                        motor.set_speed(Side::Left, state.wheel_left.speed);
-                        motor.set_speed(Side::Right, state.wheel_right.speed);
-                    });
+                motor_option.as_mut().map(|motor| {
+                    motor.set_speed(Side::Left, state.wheel_left.speed);
+                    motor.set_speed(Side::Right, state.wheel_right.speed);
+                });
 
                 Ok(())
             })

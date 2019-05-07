@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use sysfs_gpio::{Direction, Edge, Pin};
 
-use crate::event::{EncoderEvent, Event, Wheel};
+use crate::event::{EncoderEvent, Event, TimedEvent, Wheel};
 
-type Tx = mpsc::UnboundedSender<Event>;
+type Tx = mpsc::UnboundedSender<TimedEvent>;
 
 pub struct Encoder {
     tx: Arc<Mutex<Tx>>,
@@ -30,7 +30,7 @@ fn port_listen(pin_number: u64, wheel: Wheel, tx: Arc<Mutex<Tx>>) -> sysfs_gpio:
                     };
 
                     let s_tx = tx.lock().unwrap();
-                    match s_tx.unbounded_send(event) {
+                    match s_tx.unbounded_send(TimedEvent::new(event)) {
                         Ok(_) => (),
                         Err(e) => println!("encoder send error = {:?}", e),
                     }

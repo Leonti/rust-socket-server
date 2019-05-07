@@ -1,4 +1,5 @@
 #![allow(unused)]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "lowercase")]
@@ -46,13 +47,40 @@ pub struct MotorRunStat {
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Event {
-    Encoder { event: EncoderEvent },
-    Arduino { event: ArduinoEvent },
+    Encoder {
+        event: EncoderEvent,
+    },
+    Arduino {
+        event: ArduinoEvent,
+    },
     MotorRunStats {
         stats: Vec<MotorRunStat>,
         p: f32,
         i: f32,
         d: f32,
     },
-    Generic { message: String },
+    Generic {
+        message: String,
+    },
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+pub struct TimedEvent {
+    pub event: Event,
+    pub time: u128,
+}
+
+impl TimedEvent {
+    #[repr(u128)]
+    pub fn new(event: Event) -> TimedEvent {
+        let start = SystemTime::now();
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+        let time =
+            since_the_epoch.as_secs() as u128 * 1000 + since_the_epoch.subsec_millis() as u128;
+
+        TimedEvent { event, time }
+    }
 }

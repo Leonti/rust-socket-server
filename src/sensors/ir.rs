@@ -1,12 +1,12 @@
 use futures::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
-use crate::event::Event;
+use crate::event::{Event, TimedEvent};
 use std::time::{Duration, Instant};
 use tokio::prelude::*;
 use tokio::timer::Interval;
 
-type Tx = mpsc::UnboundedSender<Event>;
+type Tx = mpsc::UnboundedSender<TimedEvent>;
 
 pub struct Ir {
     tx: Arc<Mutex<Tx>>,
@@ -25,7 +25,7 @@ impl Ir {
                 };
 
                 let s_tx = &self.tx.lock().unwrap();
-                match s_tx.unbounded_send(event) {
+                match s_tx.unbounded_send(TimedEvent::new(event)) {
                     Ok(_) => (),
                     Err(e) => println!("ir send error = {:?}", e),
                 }

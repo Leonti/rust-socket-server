@@ -9,9 +9,9 @@ use tokio_io::codec::{Decoder, Encoder};
 
 use futures::{future, Future, Stream};
 
-use crate::event::{ArduinoEvent, EncodersSnapshot, Event};
+use crate::event::{ArduinoEvent, EncodersSnapshot, Event, TimedEvent};
 
-type Tx = mpsc::UnboundedSender<Event>;
+type Tx = mpsc::UnboundedSender<TimedEvent>;
 
 use crate::command::ArduinoCommand;
 
@@ -111,8 +111,8 @@ fn parse_encoders(encoders: &str) -> Result<ArduinoEvent, io::Error> {
             encoders: EncodersSnapshot {
                 left: parse_u8(left)?,
                 right: parse_u8(right)?,
-                duration: parse_isize(duration)?
-            }
+                duration: parse_isize(duration)?,
+            },
         }),
         _ => Err(io::Error::new(
             io::ErrorKind::Other,
@@ -185,7 +185,7 @@ impl Arduino {
                 let send_result = decode_event(s.freeze())
                     .map(|event| Event::Arduino { event })
                     .and_then(|event| {
-                        s_tx.unbounded_send(event)
+                        s_tx.unbounded_send(TimedEvent::new(event))
                             .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{}", e)))
                     });
 
