@@ -5,3 +5,4 @@ pub mod encoder;
 pub mod event;
 pub mod gyro;
 pub mod ir;
+pub mod lidar;

@@ -18,6 +18,8 @@ serde_json = "1.0.33"
 i2cdev = "0.3.1"
 mcp3008 = "1.0.0"
 sysfs_gpio = "0.5.3"
+serialport = "3.3.0"
+rplidar_drv = "0.6.0"
 
 [dependencies.tokio-tungstenite]
 version = "0.6.0"

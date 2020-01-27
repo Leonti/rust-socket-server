@@ -325,7 +325,7 @@ pub fn main() {
             println!("ws accept error = {:?}", err);
         });
 
-    println!("server running on localhost:6142");
+    println!("server running on localhost:5000");
 
     let sensors_tx_arc = Arc::new(Mutex::new(sensors_tx));
 
@@ -401,6 +401,7 @@ pub fn main() {
     let ir = ir::Ir::new(sensors_tx_arc.clone());
     let encoder = encoder::Encoder::new(sensors_tx_arc.clone());
     let gyro = gyro::Gyro::new(sensors_tx_arc.clone());
+    let lidar = lidar::Lidar::new(sensors_tx_arc.clone());
     let compass = compass::Compass::new(sensors_tx_arc.clone());
     let axl = axl::Axl::new(sensors_tx_arc.clone());
     encoder.run();
@@ -411,6 +412,7 @@ pub fn main() {
         .join(receive_sensor_messages)
         .join(ir.run())
         .join(gyro.run())
+        .join(lidar.run())
         .join(compass.run())
         .join(axl.run())
         .join(arduino.run())

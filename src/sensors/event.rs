@@ -44,6 +44,15 @@ pub struct MotorRunStat {
     pub duration: isize,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub struct LidarScanPoint {
+    pub angle_z_q14: u16,
+    pub dist_mm_q2: u32,
+    pub quality: u8,
+    pub flag: u8,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Event {
@@ -58,6 +67,9 @@ pub enum Event {
         p: f32,
         i: f32,
         d: f32,
+    },
+    Lidar {
+        scan_points: Vec<LidarScanPoint>,
     },
     Generic {
         message: String,
