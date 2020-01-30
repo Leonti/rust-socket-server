@@ -47,10 +47,11 @@ pub struct MotorRunStat {
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub struct LidarScanPoint {
-    pub angle_z_q14: u16,
-    pub dist_mm_q2: u32,
+    pub angle: f32,
+    pub distance: f32,
     pub quality: u8,
-    pub flag: u8,
+    pub is_sync: bool,
+    pub is_valid: bool
 }
 
 #[derive(Serialize)]

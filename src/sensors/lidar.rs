@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 extern crate rplidar_drv;
 extern crate serialport;
 
-use rplidar_drv::{Health, RplidarDevice};
+use rplidar_drv::{Health, RplidarDevice, ScanOptions};
 use serialport::prelude::*;
 
 use crate::event::{Event, LidarScanPoint, TimedEvent};
@@ -109,7 +109,7 @@ impl Lidar {
         println!("Starting LIDAR in typical mode...");
 
         let actual_mode = rplidar
-            .start_scan()
+            .start_scan_with_options(&ScanOptions::with_mode(0))
             .expect("failed to start scan in standard mode");
 
         println!("Started scan in mode `{}`", actual_mode.name);
@@ -122,10 +122,11 @@ impl Lidar {
                             scan_points: scan
                                 .iter()
                                 .map(|point| LidarScanPoint {
-                                    angle_z_q14: point.angle_z_q14,
-                                    dist_mm_q2: point.dist_mm_q2,
+                                    angle: point.angle(),
+                                    distance: point.distance(),
                                     quality: point.quality,
-                                    flag: point.flag,
+                                    is_sync: point.is_sync(),
+                                    is_valid: point.is_valid(),
                                 })
                                 .collect(),
                         };
